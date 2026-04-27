@@ -1,0 +1,45 @@
+# Decision Intelligence Agent
+
+An autonomous decision intelligence platform that turns plain-English business questions into a multi-step analytical workflow:
+
+- intent classification
+- task planning
+- SQL generation and correction
+- execution against a user database
+- statistical analysis and anomaly detection
+- hypothesis validation
+- human-readable insight synthesis
+
+The repo is structured as a monorepo with:
+
+- `backend/` - FastAPI service, agent pipeline, DB models, migrations, and tests
+- `frontend/` - Next.js app with chat, results, schema exploration, and history views
+
+## Local Setup
+
+### Backend
+
+```bash
+cd backend
+cp .env.example .env
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt -r requirements-dev.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+npm install
+npm run dev
+```
+
+## Notes
+
+- The backend has safe local fallbacks for OpenAI, Redis, and SQLite so the project can run in a lightweight dev setup.
+- The production path still supports PostgreSQL, Clerk, Redis, Neon, Render, and Vercel as described in the architecture plan.
+

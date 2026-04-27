@@ -1,0 +1,48 @@
+
+> decision-intelligence-agent-frontend@1.0.0 dev
+> next dev --port 3002
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3002
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 5.2s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 1494ms (182 modules)
+ ○ Compiling /api/[...path] ...
+ ✓ Compiled /api/[...path] in 2.1s (29 modules)
+ GET /api/v1/connections 200 in 5204ms
+ ○ Compiling /connections ...
+ ✓ Compiled /connections in 7.5s (1066 modules)
+ GET /connections 200 in 8252ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1121ms (1069 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1538ms
+ ✓ Compiled /api/[...path] in 433ms (619 modules)
+ GET /api/v1/connections 200 in 1044ms
+ POST /api/v1/connections 500 in 458ms
+ POST /api/v1/connections 500 in 598ms
+ POST /api/v1/connections 422 in 40ms
+ POST /api/v1/connections 500 in 50ms
+ POST /api/v1/connections 500 in 1123ms
+ ✓ Compiled in 1948ms (1066 modules)
+ GET /connections?_rsc=2zi17 200 in 541ms
+ ✓ Compiled /api/[...path] in 265ms (618 modules)
+ GET /connections?_rsc=2zi17 200 in 106ms
+ POST /api/v1/connections 200 in 1347ms
+ GET /api/v1/connections 200 in 476ms
+ GET /api/v1/connections 200 in 422ms
+ GET /connections 200 in 354ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 2.1s (1069 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 2592ms
+ GET /connections 200 in 122ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 77ms
+ ○ Compiling /api/[...path] ...
+ ✓ Compiled /api/[...path] in 741ms (619 modules)
+ GET /api/v1/connections 401 in 2494ms
+ GET /api/v1/connections 401 in 1072ms
+ POST /api/v1/connections 401 in 1090ms
+ POST /api/v1/connections 401 in 735ms
+ POST /api/v1/connections 401 in 1494ms
