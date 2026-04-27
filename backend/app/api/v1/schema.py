@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 
 from app.config import get_settings
@@ -38,7 +39,11 @@ async def get_schema(
         return {"schema": cached.schema_json, "cached": True, "prompt_string": SchemaInspector().to_prompt_string(cached.schema_json)}
 
     inspector = SchemaInspector()
-    schema = await inspector.get_schema(connection_string)
+    try:
+        schema = await inspector.get_schema(connection_string)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    schema = jsonable_encoder(schema)
     prompt_string = inspector.to_prompt_string(schema)
     if cached is None:
         cached = SchemaCache(

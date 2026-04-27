@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import json
+
 import httpx
 import structlog
 from fastapi import HTTPException, Request
@@ -20,14 +23,25 @@ def _parse_clerk_payload(payload: dict) -> AuthenticatedUser:
     return AuthenticatedUser(clerk_id=str(clerk_id), email=str(email), name=name)
 
 
+def _decode_jwt_payload(token: str) -> dict | None:
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload = parts[1]
+        padding = "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload + padding)
+        parsed = json.loads(decoded.decode("utf-8"))
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
 async def get_current_user(request: Request) -> AuthenticatedUser | None:
     if request.method == "OPTIONS":
         return None
 
     settings = get_settings()
-
-    if settings.environment == "development":
-        return AuthenticatedUser(clerk_id="dev-user", email="dev@example.com", name="Dev User")
 
     auth_header = request.headers.get("Authorization")
 
@@ -40,6 +54,11 @@ async def get_current_user(request: Request) -> AuthenticatedUser | None:
         raise HTTPException(status_code=401, detail="Invalid Authorization format")
 
     token = auth_header.split(" ", 1)[1]
+
+    if settings.environment == "development":
+        payload = _decode_jwt_payload(token)
+        if payload:
+            return _parse_clerk_payload(payload)
 
     if settings.auth_bypass or (settings.environment != "production" and not settings.clerk_secret_key):
         return AuthenticatedUser(

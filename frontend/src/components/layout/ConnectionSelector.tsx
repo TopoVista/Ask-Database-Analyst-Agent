@@ -21,9 +21,13 @@ export function ConnectionSelector() {
   useEffect(() => {
     if (data) {
       setConnections(data);
-      if (!activeConnectionId && data[0]) {
+      const stillExists = activeConnectionId ? data.some((connection) => connection.id === activeConnectionId) : false;
+      if ((!activeConnectionId || !stillExists) && data[0]) {
         setActiveConnection(data[0].id);
         setMirrorConnection(data[0].id);
+      } else if (!data.length) {
+        setActiveConnection(null);
+        setMirrorConnection(null);
       }
     }
   }, [data, activeConnectionId, setActiveConnection, setConnections, setMirrorConnection]);

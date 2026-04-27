@@ -14,7 +14,7 @@ class ConnectionCreate(BaseModel):
     database_name: str
     username: str
     password: str = Field(min_length=1)
-    ssl_mode: str = "prefer"
+    ssl_mode: str = "require"
 
 
 class ConnectionRead(BaseModel):

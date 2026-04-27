@@ -46,3 +46,299 @@
  POST /api/v1/connections 401 in 1090ms
  POST /api/v1/connections 401 in 735ms
  POST /api/v1/connections 401 in 1494ms
+ GET /api/v1/connections 200 in 1386ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.4s (1089 modules)
+ GET / 200 in 3177ms
+ GET /connections?_rsc=2zi17 200 in 103ms
+ ○ Compiling /sign-in ...
+ ✓ Compiled /sign-in in 1271ms (1094 modules)
+ GET /connections?_rsc=2zi17 200 in 262ms
+ GET /sign-in?_rsc=1pmxa 200 in 238ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 5.3s (2159 modules)
+ GET /connections?_rsc=2zi17 200 in 122ms
+ GET /dashboard?_rsc=aqk4e 200 in 132ms
+ GET /sign-in/SignIn_clerk_catchall_check_1777272020556 200 in 6321ms
+ GET /api/v1/connections 200 in 480ms
+ POST /api/v1/connections 200 in 717ms
+ GET /api/v1/connections 200 in 375ms
+ GET / 200 in 160ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 2114ms
+ GET /connections 200 in 306ms
+ GET /api/v1/connections 200 in 1646ms
+ GET /api/v1/connections 200 in 1670ms
+ POST /api/v1/queries/run 500 in 3751ms
+ GET /api/v1/connections 200 in 3489ms
+ GET /dashboard 200 in 532ms
+ GET /api/v1/connections 200 in 648ms
+ POST /api/v1/queries/run 500 in 21724ms
+ POST /api/v1/queries/run 500 in 56ms
+ GET /api/v1/connections 200 in 1231ms
+ POST /api/v1/queries/run 500 in 1804ms
+ GET /dashboard 200 in 137ms
+ GET /api/v1/connections 200 in 723ms
+ ○ Compiling /history ...
+ ✓ Compiled /history in 3.2s (2155 modules)
+ ✓ Compiled in 1306ms (993 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 664ms
+ GET /history?_rsc=1c0dc 200 in 113ms
+ GET /api/v1/sessions 200 in 987ms
+ POST /api/v1/queries/run 500 in 735ms
+ POST /api/v1/queries/run 500 in 638ms
+ GET /api/v1/connections 200 in 714ms
+ GET /api/v1/sessions 200 in 547ms
+ ○ Compiling /schema ...
+ ✓ Compiled /schema in 1184ms (2163 modules)
+ GET /schema?_rsc=ifike 200 in 88ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 658ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 696ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 615ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 685ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 736ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 701ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 548ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 530ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 1435ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 481ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 868ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 835ms
+ GET /api/v1/sessions 200 in 479ms
+ GET /dashboard 200 in 381ms
+ GET /api/v1/connections 200 in 468ms
+ POST /api/v1/queries/run 500 in 775ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1525ms (2152 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1785ms
+ POST /api/v1/queries/run 500 in 531ms
+ POST /api/v1/queries/run 500 in 677ms
+ POST /api/v1/queries/run 500 in 643ms
+ POST /api/v1/queries/run 500 in 721ms
+ ✓ Compiled in 1266ms (2159 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 107ms
+ ✓ Compiled in 1675ms (2159 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 65ms
+ ✓ Compiled /api/[...path] in 376ms (1167 modules)
+ POST /api/v1/queries/run 200 in 1916ms
+ GET /dashboard 200 in 507ms
+ GET /api/v1/connections 200 in 1355ms
+ POST /api/v1/queries/run 200 in 2543ms
+ POST /dashboard 200 in 61ms
+ ○ Compiling / ...
+ ✓ Compiled / in 722ms (1185 modules)
+ GET /?_rsc=1p60s 200 in 35ms
+ ✓ Compiled /sign-in in 319ms (1189 modules)
+ ✓ Compiled /sign-in/[...rest] in 450ms (1191 modules)
+ GET /sign-in/SignIn_clerk_catchall_check_1777296150929 200 in 727ms
+ GET /dashboard 200 in 233ms
+ GET /api/v1/connections 200 in 769ms
+ POST /api/v1/queries/run 200 in 1607ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 1087ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 965ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 1451ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 1367ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 1201ms
+ POST /api/v1/connections 200 in 1502ms
+ GET /api/v1/connections 200 in 960ms
+ POST /api/v1/queries/run 200 in 2342ms
+ POST /api/v1/queries/run 200 in 1886ms
+ POST /api/v1/queries/run 200 in 1725ms
+ ✓ Compiled in 1446ms (2177 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 86ms
+ ✓ Compiled in 1343ms (2177 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 121ms
+ ✓ Compiled /api/[...path] in 399ms (1185 modules)
+ GET /api/v1/connections 200 in 996ms
+ GET /dashboard 200 in 379ms
+ GET /api/v1/connections 200 in 606ms
+ POST /api/v1/queries/run 200 in 1633ms
+ GET /dashboard 200 in 65ms
+ GET /api/v1/connections 200 in 475ms
+ GET /dashboard 200 in 45ms
+ GET /dashboard 200 in 83ms
+ GET /dashboard 200 in 100ms
+ GET /dashboard 200 in 110ms
+ GET /dashboard 200 in 137ms
+ GET /dashboard 200 in 116ms
+ GET /api/v1/connections 200 in 693ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 1539ms
+ POST /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6/test 500 in 807ms
+ POST /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6/test 500 in 867ms
+ POST /api/v1/connections 200 in 775ms
+ GET /api/v1/connections 200 in 418ms
+ POST /api/v1/connections/5043e904-bb81-4e9f-b8d4-4c5eae49b327/test 500 in 744ms
+ POST /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6/test 500 in 768ms
+ POST /api/v1/connections/852b21b4-b62d-47e3-bc96-4c31cc4b2357/test 500 in 885ms
+ POST /api/v1/queries/run 200 in 1562ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1461ms (2170 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1699ms
+ POST /api/v1/queries/run 200 in 1592ms
+ POST /api/v1/queries/run 200 in 1752ms
+ GET /dashboard 200 in 502ms
+ GET /api/v1/connections 200 in 563ms
+ POST /api/v1/queries/run 200 in 1711ms
+ GET /dashboard 200 in 37ms
+ GET /api/v1/connections 200 in 581ms
+ POST /api/v1/queries/run 200 in 129818ms
+ GET /dashboard 200 in 57ms
+ GET /api/v1/connections 200 in 732ms
+ POST /api/v1/queries/run 200 in 43613ms
+ GET /api/v1/connections 200 in 1061ms
+ ○ Compiling /history ...
+ ✓ Compiled /history in 804ms (1189 modules)
+ GET /api/v1/sessions 200 in 743ms
+ ✓ Compiled in 3.7s (2182 modules)
+ GET /dashboard?_rsc=p0ba9 200 in 206ms
+ GET /dashboard 200 in 353ms
+ GET /api/v1/connections 200 in 532ms
+ POST /api/v1/queries/run 200 in 37467ms
+ POST /api/v1/queries/run 200 in 47906ms
+ GET /api/v1/connections 200 in 819ms
+ ○ Compiling /schema ...
+ ✓ Compiled /schema in 678ms (1190 modules)
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 14184ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 10748ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 13064ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 10250ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 13759ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 10701ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 9388ms
+ ✓ Compiled /api/[...path] in 1863ms (2165 modules)
+ ✓ Compiled in 0ms (1172 modules)
+ GET /schema?_rsc=ifike 200 in 637ms
+ GET /api/v1/connections 200 in 1329ms
+ ✓ Compiled in 599ms (2169 modules)
+ GET /schema?_rsc=ifike 200 in 209ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 12069ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 11700ms
+ GET /schema 200 in 252ms
+ GET /api/v1/connections 200 in 561ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 200 in 5994ms
+ GET /schema 200 in 83ms
+ GET /api/v1/connections 200 in 836ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 200 in 815ms
+ GET /schema 200 in 78ms
+ GET /schema 200 in 80ms
+ GET /schema 200 in 82ms
+ GET /api/v1/connections 200 in 669ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 11666ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 10085ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 9375ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 9138ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 9519ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 9586ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 15456ms
+ GET /api/v1/connections 200 in 426ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 25ms
+ GET /connections 200 in 69ms
+ GET /api/v1/connections 200 in 513ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 36ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 33ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 46ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 25ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 37ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 36ms
+ GET /connections 200 in 79ms
+ GET /api/v1/connections 200 in 453ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 28ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 10236ms
+ GET /api/v1/sessions 200 in 523ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 200 in 7893ms
+ GET /history 200 in 67ms
+ GET /api/v1/connections 200 in 400ms
+ GET /api/v1/sessions 200 in 493ms
+ GET /api/v1/sessions/eeaa4346-9a68-4c47-b673-3ab6ad71c519 200 in 596ms
+ GET /api/v1/sessions/628edfd2-fc97-432f-97af-9955e2eb8306 200 in 596ms
+ GET /api/v1/sessions/ff1b5d04-9596-42b8-a79b-28abefe5b001 200 in 565ms
+ GET /api/v1/sessions/06d44dc2-af4a-4c96-98e0-9c161e35a32c 200 in 582ms
+ GET /api/v1/connections 200 in 490ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 32ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1917ms (2172 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 2205ms
+ GET /connections?_rsc=2zi17 200 in 47ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 36ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 37ms
+ GET /api/v1/connections 200 in 469ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 9884ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 13594ms
+ GET /schema 200 in 112ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 88ms
+ GET /api/v1/connections 200 in 836ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 18266ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 10278ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 12223ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 9348ms
+ ✓ Compiled in 1052ms (2165 modules)
+ GET /schema?_rsc=ifike 200 in 345ms
+ ✓ Compiled /api/[...path] in 456ms (1172 modules)
+ GET /api/v1/connections 200 in 1370ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 11279ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 9742ms
+ ✓ Compiled in 1005ms (2165 modules)
+ ✓ Compiled /api/[...path] in 236ms (1172 modules)
+ GET /schema?_rsc=ifike 200 in 559ms
+ GET /api/v1/connections 200 in 1079ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 14308ms
+ GET /api/v1/schema/0d636559-87c7-4002-b67f-06462eb9ffc6 500 in 9646ms
+ GET /schema 200 in 471ms
+ GET /api/v1/connections 200 in 1656ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 8944ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 9320ms
+ DELETE /api/v1/connections/5043e904-bb81-4e9f-b8d4-4c5eae49b327 404 in 38ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 32ms
+ GET /connections 200 in 69ms
+ GET /api/v1/connections 200 in 957ms
+ GET /connections 200 in 71ms
+ GET /api/v1/connections 200 in 713ms
+ GET /connections 200 in 53ms
+ GET /api/v1/connections 200 in 511ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 31ms
+ POST /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6/test 200 in 1599ms
+ POST /api/v1/connections/5043e904-bb81-4e9f-b8d4-4c5eae49b327/test 200 in 1676ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 2.5s (2172 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 2896ms
+ GET /connections?_rsc=2zi17 200 in 80ms
+ GET /connections 200 in 95ms
+ GET /api/v1/connections 200 in 655ms
+ GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 500 in 10710ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 10729ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 10690ms
+ GET /api/v1/schema/852b21b4-b62d-47e3-bc96-4c31cc4b2357 500 in 9374ms
+ POST /dashboard 200 in 61ms
+ ○ Compiling / ...
+ ✓ Compiled / in 797ms (1186 modules)
+ GET /?_rsc=1p60s 200 in 31ms
+ ○ Compiling /sign-in/[...rest] ...
+ ✓ Compiled /sign-in/[...rest] in 586ms (1188 modules)
+ GET /sign-in/SignIn_clerk_catchall_check_1777307093741 200 in 883ms
+ GET /sign-in/sso-callback?after_sign_in_url=http%3A%2F%2Flocalhost%3A3002%2Fdashboard&after_sign_up_url=http%3A%2F%2Flocalhost%3A3002%2Fdashboard 200 in 53ms
+ GET /sign-in/sso-callback/SignIn_clerk_catchall_check_1777307106041 200 in 85ms
+ POST /sign-in/sso-callback?after_sign_in_url=http%3A%2F%2Flocalhost%3A3002%2Fdashboard&after_sign_up_url=http%3A%2F%2Flocalhost%3A3002%2Fdashboard 200 in 53ms
+ GET /dashboard?_rsc=12lck 200 in 50ms
+ ✓ Compiled /api/[...path] in 294ms (1192 modules)
+ GET /dashboard?_rsc=aqk4e 200 in 762ms
+ GET /api/v1/connections 200 in 1288ms
+ GET /dashboard 200 in 323ms
+ GET /api/v1/connections 200 in 604ms
+ GET /connections 200 in 101ms
+ GET /api/v1/connections 200 in 853ms
+ GET /connections 200 in 72ms
+ GET /api/v1/connections 200 in 518ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 35ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 32ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 37ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 42ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 29ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 35ms
+ DELETE /api/v1/connections/0d636559-87c7-4002-b67f-06462eb9ffc6 404 in 46ms
+   Reload env: .env.local
+ ○ Compiling /api/[...path] ...
+ ✓ Compiled /api/[...path] in 2.1s (2351 modules)
+ GET /connections?_rsc=2zi17 200 in 236ms
+ GET /api/v1/connections 200 in 3425ms
+ GET /connections 200 in 199ms
+ ✓ Compiled in 1573ms (2165 modules)
+ GET /history?_rsc=1c0dc 200 in 180ms

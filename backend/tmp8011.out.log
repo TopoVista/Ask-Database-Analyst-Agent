@@ -1,0 +1,70 @@
+2026-04-27 19:47:15,689 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-04-27 19:47:15,695 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-27 19:47:15,893 INFO sqlalchemy.engine.Engine select current_schema()
+2026-04-27 19:47:15,897 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-27 19:47:16,107 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-04-27 19:47:16,112 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-27 19:47:16,266 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-27 19:47:16,274 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,275 INFO sqlalchemy.engine.Engine [generated in 0.00084s] ('db_connections', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,425 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,428 INFO sqlalchemy.engine.Engine [cached since 0.1539s ago] ('query_embeddings', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,477 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,477 INFO sqlalchemy.engine.Engine [cached since 0.2036s ago] ('query_history', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,529 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,529 INFO sqlalchemy.engine.Engine [cached since 0.2555s ago] ('schema_cache', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,608 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,611 INFO sqlalchemy.engine.Engine [cached since 0.3367s ago] ('query_sessions', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,676 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-04-27 19:47:16,679 INFO sqlalchemy.engine.Engine [cached since 0.4049s ago] ('users', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-04-27 19:47:16,730 INFO sqlalchemy.engine.Engine COMMIT
+2026-04-27 19:47:17,348 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-27 19:47:17,353 INFO sqlalchemy.engine.Engine SELECT users.id, users.clerk_id, users.email, users.name, users.created_at, users.updated_at 
+FROM users 
+WHERE users.clerk_id = $1::VARCHAR
+2026-04-27 19:47:17,354 INFO sqlalchemy.engine.Engine [generated in 0.00062s] ('dev-user',)
+2026-04-27 19:47:17,533 INFO sqlalchemy.engine.Engine SELECT db_connections.id, db_connections.user_id, db_connections.name, db_connections.db_type, db_connections.host, db_connections.port, db_connections.database_name, db_connections.username, db_connections.password_encrypted, db_connections.ssl_mode, db_connections.is_active, db_connections.last_tested_at, db_connections.created_at 
+FROM db_connections 
+WHERE db_connections.id = $1::UUID AND db_connections.user_id = $2::UUID
+2026-04-27 19:47:17,534 INFO sqlalchemy.engine.Engine [generated in 0.00057s] (UUID('5043e904-bb81-4e9f-b8d4-4c5eae49b327'), UUID('070d0470-c2a7-4998-8d9c-052123708965'))
+2026-04-27 19:47:17,675 INFO sqlalchemy.engine.Engine SELECT schema_cache.id, schema_cache.connection_id, schema_cache.schema_json, schema_cache.table_count, schema_cache.cached_at, schema_cache.expires_at 
+FROM schema_cache 
+WHERE schema_cache.connection_id = $1::UUID
+2026-04-27 19:47:17,677 INFO sqlalchemy.engine.Engine [generated in 0.00159s] (UUID('5043e904-bb81-4e9f-b8d4-4c5eae49b327'),)
+2026-04-27 19:47:33,093 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:61871 - "GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 HTTP/1.1" 500 Internal Server Error
+2026-04-27 19:47:47,656 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-27 19:47:47,657 INFO sqlalchemy.engine.Engine SELECT users.id, users.clerk_id, users.email, users.name, users.created_at, users.updated_at 
+FROM users 
+WHERE users.clerk_id = $1::VARCHAR
+2026-04-27 19:47:47,658 INFO sqlalchemy.engine.Engine [cached since 30.31s ago] ('dev-user',)
+2026-04-27 19:47:47,759 INFO sqlalchemy.engine.Engine SELECT db_connections.id, db_connections.user_id, db_connections.name, db_connections.db_type, db_connections.host, db_connections.port, db_connections.database_name, db_connections.username, db_connections.password_encrypted, db_connections.ssl_mode, db_connections.is_active, db_connections.last_tested_at, db_connections.created_at 
+FROM db_connections 
+WHERE db_connections.id = $1::UUID AND db_connections.user_id = $2::UUID
+2026-04-27 19:47:47,761 INFO sqlalchemy.engine.Engine [cached since 30.23s ago] (UUID('5043e904-bb81-4e9f-b8d4-4c5eae49b327'), UUID('070d0470-c2a7-4998-8d9c-052123708965'))
+INFO:     127.0.0.1:61287 - "GET /openapi.json HTTP/1.1" 200 OK
+2026-04-27 19:47:47,810 INFO sqlalchemy.engine.Engine SELECT schema_cache.id, schema_cache.connection_id, schema_cache.schema_json, schema_cache.table_count, schema_cache.cached_at, schema_cache.expires_at 
+FROM schema_cache 
+WHERE schema_cache.connection_id = $1::UUID
+2026-04-27 19:47:47,811 INFO sqlalchemy.engine.Engine [cached since 30.14s ago] (UUID('5043e904-bb81-4e9f-b8d4-4c5eae49b327'),)
+2026-04-27 19:47:57,091 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:62604 - "GET /api/v1/schema/5043e904-bb81-4e9f-b8d4-4c5eae49b327 HTTP/1.1" 500 Internal Server Error
+2026-04-27 19:48:52,873 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-27 19:48:52,874 INFO sqlalchemy.engine.Engine SELECT users.id, users.clerk_id, users.email, users.name, users.created_at, users.updated_at 
+FROM users 
+WHERE users.clerk_id = $1::VARCHAR
+2026-04-27 19:48:52,874 INFO sqlalchemy.engine.Engine [cached since 95.52s ago] ('dev-user',)
+2026-04-27 19:48:54,120 INFO sqlalchemy.engine.Engine INSERT INTO db_connections (id, user_id, name, db_type, host, port, database_name, username, password_encrypted, ssl_mode, is_active, last_tested_at, created_at) VALUES ($1::UUID, $2::UUID, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::INTEGER, $7::VARCHAR, $8::VARCHAR, $9::VARCHAR, $10::VARCHAR, $11::BOOLEAN, $12::TIMESTAMP WITH TIME ZONE, $13::TIMESTAMP WITH TIME ZONE)
+2026-04-27 19:48:54,121 INFO sqlalchemy.engine.Engine [generated in 0.00119s] (UUID('3f22b416-58c3-4eb0-a891-861e92af3efd'), UUID('070d0470-c2a7-4998-8d9c-052123708965'), 'temp-http-delete', 'postgresql', 'ep-rough-bread-aop6q4fy-pooler.c-2.ap-southeast-1.aws.neon.tech', 5432, 'neondb', 'neondb_owner', 'gAAAAABp73BOQoxtTSqrmN6ajnqnqRoGJRmR7mSDXH_9YiZ3hhyj6ZubaETQOlTjEqTRsJRUWUcxpIcGFt2lnZFW_uTjTJ9McgJbu5CHwjxqWSjj8G6ROSY=', 'require', True, None, datetime.datetime(2026, 4, 27, 14, 18, 54, 120203, tzinfo=datetime.timezone.utc))

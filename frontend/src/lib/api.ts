@@ -27,7 +27,22 @@ async function apiFetch<T>(path: string, token?: string | null, init: RequestIni
     if (!response.ok) {
       const text = await response.text();
       console.error("ERROR RESPONSE:", text);
-      throw new Error(text || `Request failed: ${response.status}`);
+      try {
+        const parsed = JSON.parse(text);
+        const message =
+          typeof parsed?.detail === "string"
+            ? parsed.detail
+            : typeof parsed?.message === "string"
+              ? parsed.message
+              : text;
+        throw new Error(message || `Request failed: ${response.status}`);
+      } catch {
+        throw new Error(text || `Request failed: ${response.status}`);
+      }
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return await response.json();
@@ -47,6 +62,12 @@ export async function createConnection(payload: ConnectionCreate, token?: string
 export async function testConnection(connectionId: string, token?: string | null) {
   return apiFetch<{ success: boolean; message: string }>(`/api/v1/connections/${connectionId}/test`, token, {
     method: "POST",
+  });
+}
+
+export async function deleteConnection(connectionId: string, token?: string | null) {
+  return apiFetch<void>(`/api/v1/connections/${connectionId}`, token, {
+    method: "DELETE",
   });
 }
 

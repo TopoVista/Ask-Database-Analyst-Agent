@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
@@ -30,7 +30,10 @@ async def create_connection(
 ):
     user = await ensure_user(db, current_user)
     service = ConnectionService(db)
-    conn = await service.create_connection(user.id, request)
+    try:
+        conn = await service.create_connection(user.id, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return conn
 
 
@@ -46,3 +49,16 @@ async def test_connection(
     if not result["success"] and result["message"] == "Connection not found":
         raise HTTPException(status_code=404, detail="Connection not found")
     return result
+
+
+@router.delete("/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_connection(
+    connection_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    user = await ensure_user(db, current_user)
+    service = ConnectionService(db)
+    deleted = await service.delete_connection(connection_id, user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Connection not found")

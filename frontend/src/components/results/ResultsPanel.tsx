@@ -11,6 +11,7 @@ import { AnomalyBadge } from "./AnomalyBadge";
 export function ResultsPanel({ results }: { results: QueryResult[] }) {
   if (!results.length) return null;
   const first = results.find((result) => result.success && result.rows.length > 0) ?? results[0];
+  const rowLabel = `${first.rowCount ?? first.rows.length} ${first.rowCount === 1 || first.rows.length === 1 ? "row" : "rows"} returned`;
 
   return (
     <div className="space-y-4">
@@ -32,7 +33,7 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
                 </pre>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-fg">
-                {first.success ? `${first.rowCount ?? first.rows.length} rows returned.` : first.error ?? "No result"}
+                {first.success ? rowLabel : first.error ?? "No result"}
               </div>
             </div>
           </div>
@@ -59,9 +60,8 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
 
       <InsightCard
         title="What this means"
-        summary="The dashboard surfaces the raw result set so the analyst can inspect the underlying data shape while the agent composes the narrative answer."
+        summary="The SQL and table below let you inspect the exact data behind the agent's answer."
       />
     </div>
   );
 }
-

@@ -45,6 +45,24 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
   }
 
   const metricKey = numericKeys[0];
+  const isSingleMetric = rows.length === 1 && numericKeys.length === 1 && Object.keys(rows[0] ?? {}).length <= 2;
+
+  if (isSingleMetric) {
+    const value = rows[0]?.[metricKey];
+    return (
+      <Card>
+        <CardContent className="flex h-[320px] flex-col justify-center gap-3 p-6">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-muted-fg">Headline metric</p>
+          <p className="text-5xl font-semibold tracking-tight text-fg">
+            {typeof value === "number" ? value.toLocaleString() : String(value ?? "—")}
+          </p>
+          <p className="max-w-sm text-sm leading-6 text-muted-fg">
+            A single-row result is clearer as a metric card than as a chart.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -72,4 +90,3 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
     </Card>
   );
 }
-

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.agents.pipeline import AgentPipeline
 from app.dependencies import get_current_user, get_db
 from app.models.connection import DBConnection
+from app.models.database import get_sessionmaker
 from app.models.query_history import QueryHistory
 from app.models.session import QuerySession
 from app.schemas.auth import AuthenticatedUser
@@ -18,6 +19,7 @@ from app.services.connection_service import ConnectionService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/queries", tags=["queries"])
+sessionmaker = get_sessionmaker()
 
 
 @router.post("/run")
@@ -57,34 +59,36 @@ async def run_query(
                     final_data = event["data"]
                 yield f"data: {json.dumps(event, default=str)}\n\n"
             if final_data is not None:
+                async with sessionmaker() as history_db:
+                    history = QueryHistory(
+                        session_id=session_uuid,
+                        user_id=user.id,
+                        user_question=request.question,
+                        intent_type=final_data.get("intent", {}).get("intent") if isinstance(final_data.get("intent"), dict) else None,
+                        task_plan=final_data.get("plan"),
+                        generated_queries=final_data.get("query_results"),
+                        analysis_result=final_data.get("analysis"),
+                        hypotheses=final_data.get("hypotheses"),
+                        final_insight=final_data.get("final_insight"),
+                        anomalies_detected=final_data.get("analysis", {}).get("statistical_anomalies", []),
+                        execution_time_ms=final_data.get("execution_time_ms"),
+                        total_tokens_used=len(final_data.get("final_insight", "").split()),
+                        error=None,
+                    )
+                    history_db.add(history)
+                    await history_db.commit()
+        except Exception as exc:
+            error_message = ConnectionService.describe_connection_error(str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'data': {'message': error_message}})}\n\n"
+            async with sessionmaker() as history_db:
                 history = QueryHistory(
                     session_id=session_uuid,
                     user_id=user.id,
                     user_question=request.question,
-                    intent_type=final_data.get("intent", {}).get("intent") if isinstance(final_data.get("intent"), dict) else None,
-                    task_plan=final_data.get("plan"),
-                    generated_queries=final_data.get("query_results"),
-                    analysis_result=final_data.get("analysis"),
-                    hypotheses=final_data.get("hypotheses"),
-                    final_insight=final_data.get("final_insight"),
-                    anomalies_detected=final_data.get("analysis", {}).get("statistical_anomalies", []),
-                    execution_time_ms=final_data.get("execution_time_ms"),
-                    total_tokens_used=len(final_data.get("final_insight", "").split()),
-                    error=None,
+                    error=error_message,
                 )
-                db.add(history)
-                await db.flush()
-        except Exception as exc:
-            error_message = str(exc)
-            yield f"data: {json.dumps({'type': 'error', 'data': {'message': error_message}})}\n\n"
-            history = QueryHistory(
-                session_id=session_uuid,
-                user_id=user.id,
-                user_question=request.question,
-                error=error_message,
-            )
-            db.add(history)
-            await db.flush()
+                history_db.add(history)
+                await history_db.commit()
 
     return StreamingResponse(
         event_generator(),

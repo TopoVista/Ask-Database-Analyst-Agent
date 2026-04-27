@@ -43,7 +43,8 @@ export function useStreamingQuery() {
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
         }
 
         await consumeEventStream(response, (event) => {
@@ -98,8 +99,9 @@ export function useStreamingQuery() {
               break;
           }
         });
-      } catch {
-        updateLastMessage("Something went wrong. Please try again.", {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+        updateLastMessage(message, {
           isStreaming: false,
           isError: true,
         });
@@ -112,4 +114,3 @@ export function useStreamingQuery() {
 
   return { runQuery, isStreaming, currentSteps, currentResults };
 }
-

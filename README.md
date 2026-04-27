@@ -42,4 +42,5 @@ npm run dev
 
 - The backend has safe local fallbacks for OpenAI, Redis, and SQLite so the project can run in a lightweight dev setup.
 - The production path still supports PostgreSQL, Clerk, Redis, Neon, Render, and Vercel as described in the architecture plan.
-
+- To use OpenAI-backed agents, set `OPENAI_API_KEY` in `backend/.env`. The backend already prefers OpenAI automatically when that key is present.
+- For Neon connections, keep `ssl_mode=require` and use the database password from Neon connection details. The app now validates credentials before saving a connection.

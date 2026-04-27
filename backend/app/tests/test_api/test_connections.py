@@ -12,3 +12,9 @@ async def test_connections_requires_auth():
         response = await client.get("/api/v1/connections")
     assert response.status_code == 401
 
+
+@pytest.mark.asyncio
+async def test_delete_connection_requires_auth():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.delete("/api/v1/connections/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 401

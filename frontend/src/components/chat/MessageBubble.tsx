@@ -2,6 +2,7 @@
 
 import type { Message } from "@/stores/chatStore";
 import { cn } from "@/lib/utils";
+import { RichTextMessage } from "./RichTextMessage";
 
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -20,9 +21,12 @@ export function MessageBubble({ message }: { message: Message }) {
           {message.isStreaming ? <span className="text-accent">streaming</span> : null}
           {message.isError ? <span className="text-danger">error</span> : null}
         </div>
-        <p className="whitespace-pre-wrap text-sm leading-6">{message.content || (message.isStreaming ? "Thinking..." : "")}</p>
+        {isUser || message.isError ? (
+          <p className="whitespace-pre-wrap text-sm leading-6">{message.content || (message.isStreaming ? "Thinking..." : "")}</p>
+        ) : (
+          <RichTextMessage text={message.content || (message.isStreaming ? "Thinking..." : "")} />
+        )}
       </div>
     </div>
   );
 }
-

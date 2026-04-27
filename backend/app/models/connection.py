@@ -24,7 +24,7 @@ class DBConnection(Base):
     database_name: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     password_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
-    ssl_mode: Mapped[str] = mapped_column(String(50), default="prefer")
+    ssl_mode: Mapped[str] = mapped_column(String(50), default="require")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
@@ -33,4 +33,3 @@ class DBConnection(Base):
 
 
 Index("idx_connections_user_id", DBConnection.user_id)
-

@@ -9,7 +9,10 @@ from sqlalchemy.engine import URL
 
 from app.models.connection import DBConnection
 from app.models.database import get_sessionmaker
+from app.models.schema_cache import SchemaCache
+from app.models.session import QuerySession
 from app.services.encryption_service import EncryptionService
+from app.tools.sql_executor import SQLExecutor
 
 
 class ConnectionService:
@@ -20,6 +23,17 @@ class ConnectionService:
 
     def build_connection_string(self, conn: DBConnection, password: str | None = None) -> str:
         if conn.db_type.lower() in {"postgres", "postgresql"}:
+            query = None
+            ssl_mode = (conn.ssl_mode or "").strip().lower()
+            if ssl_mode == "prefer":
+                # Managed Postgres providers such as Neon reject plaintext
+                # probes, so "prefer" is effectively "require" here.
+                ssl_mode = "require"
+            if ssl_mode and ssl_mode != "disable":
+                # asyncpg accepts the parameter name `ssl`, while `sslmode`
+                # passed through SQLAlchemy URL parsing can become an
+                # unsupported keyword argument at connect time.
+                query = {"ssl": ssl_mode}
             url = URL.create(
                 "postgresql+asyncpg",
                 username=conn.username,
@@ -27,14 +41,53 @@ class ConnectionService:
                 host=conn.host,
                 port=conn.port,
                 database=conn.database_name,
-                query={"sslmode": conn.ssl_mode} if conn.ssl_mode else None,
+                query=query,
             )
-            return str(url)
+            return url.render_as_string(hide_password=False)
         if conn.db_type.lower() == "sqlite":
             return f"sqlite+aiosqlite:///{conn.database_name}"
         raise ValueError(f"Unsupported database type: {conn.db_type}")
 
+    @staticmethod
+    def describe_connection_error(error: str) -> str:
+        lowered = (error or "").lower()
+        if "password authentication failed" in lowered or "invalidpassworderror" in lowered:
+            return (
+                "Database authentication failed. Verify the username and password for this database. "
+                "For Neon, use the database password from the connection details and keep SSL mode set to require."
+            )
+        if "name or service not known" in lowered or "getaddrinfo failed" in lowered:
+            return "Database host could not be resolved. Check the host name and try again."
+        if "connection refused" in lowered:
+            return "Database connection was refused. Check the host, port, and whether the database is accepting connections."
+        if "does not exist" in lowered and "database" in lowered:
+            return "Database name was not found. Verify the database name in the connection settings."
+        if "timeout" in lowered or "timed out" in lowered:
+            return "Database connection timed out. Check network access, firewall rules, and SSL settings."
+        if "ssl" in lowered:
+            return "Database SSL negotiation failed. For Neon or managed Postgres, use SSL mode 'require'."
+        return error
+
+    async def validate_connection_payload(self, conn_data) -> None:
+        temp_conn = DBConnection(
+            user_id=UUID("00000000-0000-0000-0000-000000000000"),
+            name=conn_data.name,
+            db_type=conn_data.db_type,
+            host=conn_data.host,
+            port=conn_data.port,
+            database_name=conn_data.database_name,
+            username=conn_data.username,
+            password_encrypted="",
+            ssl_mode=conn_data.ssl_mode,
+            is_active=True,
+        )
+        connection_string = self.build_connection_string(temp_conn, password=conn_data.password)
+        result = await SQLExecutor().execute(connection_string, "SELECT 1 AS ok")
+        if not result["success"]:
+            raise ValueError(self.describe_connection_error(result["error"]))
+
     async def create_connection(self, user_id, conn_data) -> DBConnection:
+        await self.validate_connection_payload(conn_data)
         encrypted = self.encryption.encrypt(conn_data.password)
         user_uuid = UUID(str(user_id))
 
@@ -121,13 +174,50 @@ class ConnectionService:
             return None
         return self.build_connection_string(conn)
 
+    async def delete_connection(self, connection_id, user_id) -> bool:
+        conn = await self.get_connection(connection_id, user_id)
+        if conn is None:
+            return False
+
+        connection_uuid = UUID(str(connection_id))
+        if self.db is not None:
+            sessions = await self.db.execute(select(QuerySession).where(QuerySession.connection_id == connection_uuid))
+            for query_session in sessions.scalars().all():
+                await self.db.delete(query_session)
+
+            cached = await self.db.execute(select(SchemaCache).where(SchemaCache.connection_id == connection_uuid))
+            schema_cache = cached.scalar_one_or_none()
+            if schema_cache is not None:
+                await self.db.delete(schema_cache)
+
+            await self.db.delete(conn)
+            await self.db.flush()
+            return True
+
+        async with self.sessionmaker() as session:
+            result = await session.execute(select(DBConnection).where(DBConnection.id == connection_uuid))
+            db_conn = result.scalar_one_or_none()
+            if db_conn is None:
+                return False
+
+            sessions = await session.execute(select(QuerySession).where(QuerySession.connection_id == connection_uuid))
+            for query_session in sessions.scalars().all():
+                await session.delete(query_session)
+
+            cached = await session.execute(select(SchemaCache).where(SchemaCache.connection_id == connection_uuid))
+            schema_cache = cached.scalar_one_or_none()
+            if schema_cache is not None:
+                await session.delete(schema_cache)
+
+            await session.delete(db_conn)
+            await session.commit()
+            return True
+
     async def test_connection(self, connection_id, user_id) -> dict[str, Any]:
         conn = await self.get_connection(connection_id, user_id)
         if conn is None:
             return {"success": False, "message": "Connection not found"}
         connection_string = self.build_connection_string(conn)
-
-        from app.tools.sql_executor import SQLExecutor
 
         result = await SQLExecutor().execute(connection_string, "SELECT 1 AS ok LIMIT 1")
         if self.db is not None:
@@ -143,5 +233,5 @@ class ConnectionService:
                     await session.commit()
         return {
             "success": result["success"],
-            "message": "Connection successful" if result["success"] else result["error"],
+            "message": "Connection successful" if result["success"] else self.describe_connection_error(result["error"]),
         }

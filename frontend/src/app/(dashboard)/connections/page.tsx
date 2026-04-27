@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createConnection, listConnections, testConnection } from "@/lib/api";
+import { createConnection, deleteConnection, listConnections, testConnection } from "@/lib/api";
 import { useChatStore } from "@/stores/chatStore";
 import { useConnectionStore } from "@/stores/connectionStore";
 import type { ConnectionCreate } from "@/types/api";
@@ -20,16 +20,19 @@ const INITIAL_FORM: ConnectionCreate = {
   database_name: "",
   username: "",
   password: "",
-  ssl_mode: "prefer",
+  ssl_mode: "require",
 };
 
 export default function ConnectionsPage() {
   const [form, setForm] = useState<ConnectionCreate>(INITIAL_FORM);
   const [status, setStatus] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTestingId, setIsTestingId] = useState<string | null>(null);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
-  const { setActiveConnection } = useConnectionStore();
-  const { setActiveConnection: setChatConnection } = useChatStore();
+  const { activeConnectionId, setActiveConnection } = useConnectionStore();
+  const { activeConnectionId: chatActiveConnectionId, setActiveConnection: setChatConnection } = useChatStore();
 
   const tokenQuery = useQuery({
     queryKey: ["connections"],
@@ -38,13 +41,46 @@ export default function ConnectionsPage() {
 
   const submit = async () => {
     setStatus(null);
-    const token = await getToken();
-    const created = await createConnection(form, token);
-    setStatus(`Created ${created.name}`);
-    setForm(INITIAL_FORM);
-    await queryClient.invalidateQueries({ queryKey: ["connections"] });
-    setActiveConnection(created.id);
-    setChatConnection(created.id);
+    setIsSaving(true);
+    try {
+      const token = await getToken();
+      const created = await createConnection(form, token);
+      setStatus(`Connection verified and saved for ${created.name}.`);
+      setForm(INITIAL_FORM);
+      await queryClient.invalidateQueries({ queryKey: ["connections"] });
+      setActiveConnection(created.id);
+      setChatConnection(created.id);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to save the connection.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeConnection = async (connectionId: string) => {
+    setStatus(null);
+    setIsDeletingId(connectionId);
+    try {
+      const token = await getToken();
+      await deleteConnection(connectionId, token);
+      const remainingConnections = (tokenQuery.data ?? []).filter((connection) => connection.id !== connectionId);
+      const nextActiveId = remainingConnections[0]?.id ?? null;
+
+      if (activeConnectionId === connectionId) {
+        setActiveConnection(nextActiveId);
+      }
+      if (chatActiveConnectionId === connectionId) {
+        setChatConnection(nextActiveId);
+      }
+
+      setStatus("Connection removed.");
+      await queryClient.invalidateQueries({ queryKey: ["connections"] });
+      await queryClient.invalidateQueries({ queryKey: ["schema"] });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to delete the connection.");
+    } finally {
+      setIsDeletingId(null);
+    }
   };
 
   return (
@@ -82,10 +118,27 @@ export default function ConnectionsPage() {
               onChange={(ssl_mode) => setForm((prev) => ({ ...prev, ssl_mode }))}
             />
           </div>
-          <Button onClick={submit} disabled={!form.name || !form.host || !form.database_name || !form.username || !form.password}>
-            Save connection
+          <p className="text-xs text-muted-fg">
+            For Neon, use the exact host, database name, username, and database password from the connection string.
+            Keep SSL mode as <span className="font-medium text-fg">require</span>.
+          </p>
+          <Button
+            onClick={submit}
+            disabled={isSaving || !form.name || !form.host || !form.database_name || !form.username || !form.password}
+          >
+            {isSaving ? "Verifying..." : "Save connection"}
           </Button>
-          {status ? <p className="text-sm text-success">{status}</p> : null}
+          {status ? (
+            <p
+              className={`text-sm ${
+                status.toLowerCase().includes("successful") || status.toLowerCase().includes("saved")
+                  ? "text-success"
+                  : "text-red-400"
+              }`}
+            >
+              {status}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -116,12 +169,27 @@ export default function ConnectionsPage() {
                       variant="secondary"
                       size="sm"
                       onClick={async () => {
-                        const token = await getToken();
-                        const result = await testConnection(connection.id, token);
-                        setStatus(result.message);
+                        setIsTestingId(connection.id);
+                        try {
+                          const token = await getToken();
+                          const result = await testConnection(connection.id, token);
+                          setStatus(result.message);
+                        } catch (error) {
+                          setStatus(error instanceof Error ? error.message : "Unable to test the connection.");
+                        } finally {
+                          setIsTestingId(null);
+                        }
                       }}
                     >
-                      Test
+                      {isTestingId === connection.id ? "Testing..." : "Test"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isDeletingId === connection.id}
+                      onClick={() => removeConnection(connection.id)}
+                    >
+                      {isDeletingId === connection.id ? "Removing..." : "Delete"}
                     </Button>
                   </div>
                 </div>
@@ -154,4 +222,3 @@ function GridInput({
     </label>
   );
 }
-

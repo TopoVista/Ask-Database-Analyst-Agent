@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/nextjs";
 import { listConnections, getSchema } from "@/lib/api";
@@ -8,6 +8,7 @@ import { SchemaTree } from "@/components/schema/SchemaTree";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chatStore";
+import { cn } from "@/lib/utils";
 
 export default function SchemaPage() {
   const { getToken } = useAuth();
@@ -17,6 +18,21 @@ export default function SchemaPage() {
     queryFn: async () => listConnections(await getToken()),
   });
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const availableConnections = connections.data ?? [];
+    const stillExists = activeConnectionId ? availableConnections.some((connection) => connection.id === activeConnectionId) : false;
+    if (!availableConnections.length) {
+      if (activeConnectionId) {
+        setActiveConnection(null);
+      }
+      return;
+    }
+    if (!activeConnectionId || !stillExists) {
+      setActiveConnection(availableConnections[0].id);
+    }
+  }, [connections.data, activeConnectionId, setActiveConnection]);
+
   const schemaQuery = useQuery({
     queryKey: ["schema", activeConnectionId, refreshKey],
     queryFn: async () => (activeConnectionId ? getSchema(activeConnectionId, await getToken()) : null),
@@ -37,7 +53,12 @@ export default function SchemaPage() {
             <button
               key={connection.id}
               onClick={() => setActiveConnection(connection.id)}
-              className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10"
+              className={cn(
+                "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition hover:bg-white/10",
+                activeConnectionId === connection.id
+                  ? "border-white/70 bg-white/10 shadow-glow"
+                  : "border-white/10 bg-white/5"
+              )}
             >
               <div>
                 <p className="font-medium text-fg">{connection.name}</p>
@@ -53,6 +74,18 @@ export default function SchemaPage() {
       </Card>
 
       <div className="space-y-4">
+        {schemaQuery.isLoading ? (
+          <Card>
+            <CardContent className="py-10 text-sm text-muted-fg">Loading schema...</CardContent>
+          </Card>
+        ) : null}
+        {schemaQuery.error ? (
+          <Card>
+            <CardContent className="py-10 text-sm text-red-400">
+              {schemaQuery.error instanceof Error ? schemaQuery.error.message : "Unable to load schema."}
+            </CardContent>
+          </Card>
+        ) : null}
         {schemaQuery.data?.prompt_string ? (
           <Card>
             <CardHeader>
