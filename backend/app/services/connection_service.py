@@ -9,6 +9,7 @@ from sqlalchemy.engine import URL
 
 from app.models.connection import DBConnection
 from app.models.database import get_sessionmaker
+from app.models.query_embedding import QueryEmbedding
 from app.models.schema_cache import SchemaCache
 from app.models.session import QuerySession
 from app.services.encryption_service import EncryptionService
@@ -181,6 +182,10 @@ class ConnectionService:
 
         connection_uuid = UUID(str(connection_id))
         if self.db is not None:
+            embeddings = await self.db.execute(select(QueryEmbedding).where(QueryEmbedding.connection_id == connection_uuid))
+            for embedding in embeddings.scalars().all():
+                await self.db.delete(embedding)
+
             sessions = await self.db.execute(select(QuerySession).where(QuerySession.connection_id == connection_uuid))
             for query_session in sessions.scalars().all():
                 await self.db.delete(query_session)
@@ -199,6 +204,10 @@ class ConnectionService:
             db_conn = result.scalar_one_or_none()
             if db_conn is None:
                 return False
+
+            embeddings = await session.execute(select(QueryEmbedding).where(QueryEmbedding.connection_id == connection_uuid))
+            for embedding in embeddings.scalars().all():
+                await session.delete(embedding)
 
             sessions = await session.execute(select(QuerySession).where(QuerySession.connection_id == connection_uuid))
             for query_session in sessions.scalars().all():

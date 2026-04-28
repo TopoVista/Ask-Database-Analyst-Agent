@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useStreamingQuery } from "@/hooks/useStreamingQuery";
 import { QueryInput } from "./QueryInput";
@@ -19,22 +19,44 @@ const EXAMPLE_QUERIES = [
 
 export function ChatInterface() {
   const { messages, addMessage, activeConnectionId } = useChatStore();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const { runQuery, isStreaming, currentSteps, currentResults } = useStreamingQuery();
 
   useEffect(() => {
+    if (!autoScrollEnabled || !shouldStickToBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, currentSteps, currentResults, autoScrollEnabled]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const isNearBottom = distanceFromBottom < 120;
+      shouldStickToBottomRef.current = isNearBottom;
+      setAutoScrollEnabled(isNearBottom);
+    };
+
+    handleScroll();
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
   }, [messages, currentSteps, currentResults]);
 
   const handleSubmit = async (question: string) => {
     if (!activeConnectionId) return;
+    shouldStickToBottomRef.current = true;
+    setAutoScrollEnabled(true);
     addMessage({ role: "user", content: question });
     await runQuery(question, activeConnectionId);
   };
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
         {messages.length === 0 ? (
           <div className="flex min-h-[70vh] items-center justify-center">
             <Card className="w-full max-w-4xl overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
@@ -73,6 +95,21 @@ export function ChatInterface() {
           {currentResults && <ResultsPanel results={currentResults} />}
         </div>
 
+        {isStreaming && !autoScrollEnabled ? (
+          <div className="sticky bottom-4 mt-4 flex justify-center">
+            <button
+              onClick={() => {
+                shouldStickToBottomRef.current = true;
+                setAutoScrollEnabled(true);
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="rounded-full border border-white/10 bg-slate-950/90 px-3 py-1.5 text-xs text-fg shadow-glow transition hover:bg-slate-900"
+            >
+              Jump to latest response
+            </button>
+          </div>
+        ) : null}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -86,4 +123,3 @@ export function ChatInterface() {
     </div>
   );
 }
-

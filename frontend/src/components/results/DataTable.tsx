@@ -50,9 +50,8 @@ export function DataTable({
 }
 
 function formatCell(value: unknown) {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "-";
   if (typeof value === "number") return value.toLocaleString();
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
-

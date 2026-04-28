@@ -11,6 +11,7 @@ import {
   LineChart,
   Line,
 } from "recharts";
+import { AlertTriangle, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 function getChartData(rows: Record<string, unknown>[]) {
@@ -27,7 +28,13 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
   if (!rows.length) {
     return (
       <Card>
-        <CardContent className="py-8 text-sm text-muted-fg">No chart data available.</CardContent>
+        <CardContent className="flex h-[220px] flex-col items-start justify-center gap-3 p-6">
+          <BarChart3 className="h-5 w-5 text-muted-fg" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-fg">No chart preview</p>
+            <p className="text-sm text-muted-fg">This result did not return rows that can be visualized.</p>
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -39,7 +46,13 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
   if (!numericKeys.length) {
     return (
       <Card>
-        <CardContent className="py-8 text-sm text-muted-fg">The result set does not contain numeric fields for a chart.</CardContent>
+        <CardContent className="flex h-[220px] flex-col items-start justify-center gap-3 p-6">
+          <AlertTriangle className="h-5 w-5 text-muted-fg" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-fg">No numeric chart fields</p>
+            <p className="text-sm text-muted-fg">The query returned data, but not in a shape suitable for charting.</p>
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -54,7 +67,7 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
         <CardContent className="flex h-[320px] flex-col justify-center gap-3 p-6">
           <p className="text-[11px] uppercase tracking-[0.24em] text-muted-fg">Headline metric</p>
           <p className="text-5xl font-semibold tracking-tight text-fg">
-            {typeof value === "number" ? value.toLocaleString() : String(value ?? "—")}
+            {typeof value === "number" ? value.toLocaleString() : String(value ?? "-")}
           </p>
           <p className="max-w-sm text-sm leading-6 text-muted-fg">
             A single-row result is clearer as a metric card than as a chart.

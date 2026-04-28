@@ -7,7 +7,13 @@ type Block =
   | { type: "numbered"; items: string[] };
 
 function parseBlocks(text: string): Block[] {
-  const lines = text
+  const normalizedText = text
+    .replace(/\s+(#{1,6}\s+)/g, "\n$1")
+    .replace(/\s+(-\s+)/g, "\n$1")
+    .replace(/\s+(\d+\.\s+)/g, "\n$1")
+    .replace(/:\s+(#{1,6}\s+)/g, ":\n$1");
+
+  const lines = normalizedText
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => line.trim());
@@ -105,7 +111,7 @@ export function RichTextMessage({ text }: { text: string }) {
       {blocks.map((block, index) => {
         if (block.type === "heading") {
           return (
-            <h4 key={index} className="pt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
+            <h4 key={index} className="pt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
               {renderInline(block.text)}
             </h4>
           );
@@ -136,7 +142,7 @@ export function RichTextMessage({ text }: { text: string }) {
         }
 
         return (
-          <p key={index} className="text-sm leading-7 text-fg/92">
+          <p key={index} className="max-w-[68ch] text-sm leading-7 text-fg/92">
             {renderInline(block.text)}
           </p>
         );
