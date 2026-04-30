@@ -42,6 +42,8 @@ Frontend env notes:
 - Leave `NEXT_PUBLIC_API_URL` empty to use the built-in Next.js `/api/*` proxy.
 - Set `BACKEND_API_URL` and `NEXT_PUBLIC_BACKEND_API_URL` to the FastAPI origin the proxy should forward to.
 - For local development, `http://127.0.0.1:8011` is the expected backend URL.
+- For Vercel, keep browser traffic on the same origin and set `BACKEND_API_URL=https://autonomous-decision-intelligence-engine.onrender.com`.
+- Only set `NEXT_PUBLIC_USE_DIRECT_API=true` if you intentionally want the browser to call the backend origin directly.
 
 ## Notes
 

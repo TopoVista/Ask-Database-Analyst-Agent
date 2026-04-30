@@ -8,6 +8,9 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+DEFAULT_FRONTEND_ORIGIN = "https://autonomous-decision-intelligence-en.vercel.app"
+DEFAULT_VERCEL_ORIGIN_REGEX = r"^https://autonomous-decision-intelligence-en(?:-[a-z0-9-]+)?\.vercel\.app$"
+DEFAULT_LOCAL_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 
 class Settings(BaseSettings):
@@ -22,7 +25,9 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     environment: str = "development"
     log_level: str = "INFO"
-    allowed_origins: str = Field(default="http://localhost:3000,http://localhost:3003")
+    allowed_origins: str = Field(
+        default=f"http://localhost:3000,http://localhost:3002,http://localhost:3003,{DEFAULT_FRONTEND_ORIGIN}"
+    )
     allowed_origin_regex: str = ""
     max_query_rows: int = 1000
     agent_max_iterations: int = 5
@@ -40,8 +45,11 @@ class Settings(BaseSettings):
                 for origin in self.allowed_origins.split(",")
                 if origin.strip()
             ]
-        if not self.allowed_origin_regex and self.environment == "development":
-            self.allowed_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        if not self.allowed_origin_regex:
+            if self.environment == "development":
+                self.allowed_origin_regex = f"{DEFAULT_LOCAL_ORIGIN_REGEX}|{DEFAULT_VERCEL_ORIGIN_REGEX}"
+            else:
+                self.allowed_origin_regex = DEFAULT_VERCEL_ORIGIN_REGEX
         return self
 
 

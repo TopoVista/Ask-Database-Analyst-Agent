@@ -17,15 +17,61 @@ type RouteContext = {
   };
 };
 
+const BLOCKED_REQUEST_HEADERS = new Set([
+  "accept-encoding",
+  "connection",
+  "content-length",
+  "expect",
+  "host",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+const BLOCKED_RESPONSE_HEADERS = new Set([
+  "connection",
+  "content-encoding",
+  "content-length",
+  "keep-alive",
+  "transfer-encoding",
+]);
+
+function buildUpstreamHeaders(request: NextRequest) {
+  const headers = new Headers();
+
+  for (const [key, value] of request.headers.entries()) {
+    const normalized = key.toLowerCase();
+    if (BLOCKED_REQUEST_HEADERS.has(normalized) || normalized.startsWith("sec-")) {
+      continue;
+    }
+    headers.set(key, value);
+  }
+
+  return headers;
+}
+
+function buildClientHeaders(response: Response) {
+  const headers = new Headers();
+
+  for (const [key, value] of response.headers.entries()) {
+    if (BLOCKED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+      continue;
+    }
+    headers.set(key, value);
+  }
+
+  headers.set("cache-control", "no-store");
+  return headers;
+}
+
 async function proxy(request: NextRequest, { params }: RouteContext) {
   const upstreamPath = params.path.join("/");
   const targetUrl = `${BACKEND_API_URL}/api/${upstreamPath}${request.nextUrl.search}`;
-  const headers = new Headers(request.headers);
-
-  headers.delete("host");
-  headers.delete("connection");
-  headers.delete("expect");
-  headers.delete("content-length");
+  const headers = buildUpstreamHeaders(request);
 
   const init: RequestInit = {
     method: request.method,
@@ -38,14 +84,23 @@ async function proxy(request: NextRequest, { params }: RouteContext) {
     init.body = await request.arrayBuffer();
   }
 
-  const response = await fetch(targetUrl, init);
-  const responseHeaders = new Headers(response.headers);
+  try {
+    const response = await fetch(targetUrl, init);
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: responseHeaders,
-  });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: buildClientHeaders(response),
+    });
+  } catch (error) {
+    console.error(`Proxy request failed for ${request.method} ${targetUrl}:`, error);
+    return Response.json(
+      {
+        detail: "Unable to reach the backend service through the frontend proxy.",
+      },
+      { status: 502 }
+    );
+  }
 }
 
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE, proxy as OPTIONS, proxy as HEAD };
