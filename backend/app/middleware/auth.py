@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 
 import httpx
 import structlog
@@ -13,12 +14,28 @@ from app.schemas.auth import AuthenticatedUser
 logger = structlog.get_logger()
 
 
+def _fallback_email(clerk_id: str) -> str:
+    safe_clerk_id = re.sub(r"[^a-zA-Z0-9._-]", "-", clerk_id).strip("-") or "unknown"
+    return f"{safe_clerk_id}@users.invalid"
+
+
 def _parse_clerk_payload(payload: dict) -> AuthenticatedUser:
     clerk_id = payload.get("id") or payload.get("sub") or payload.get("user_id") or "unknown"
-    email = payload.get("email") or payload.get("email_address")
+    email = payload.get("email_address") or payload.get("email")
+
+    if not email and isinstance(payload.get("primary_email_address"), dict):
+        email = payload["primary_email_address"].get("email_address")
+
     if not email and payload.get("email_addresses"):
-        email = payload["email_addresses"][0].get("email_address")
-    email = email or "unknown@example.com"
+        email_addresses = payload["email_addresses"]
+        if isinstance(email_addresses, list) and email_addresses:
+            first_email = email_addresses[0]
+            if isinstance(first_email, dict):
+                email = first_email.get("email_address") or first_email.get("email")
+            elif isinstance(first_email, str):
+                email = first_email
+
+    email = str(email).strip() if email else _fallback_email(str(clerk_id))
     name = payload.get("name") or payload.get("first_name") or payload.get("full_name")
     return AuthenticatedUser(clerk_id=str(clerk_id), email=str(email), name=name)
 
