@@ -3,15 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --bg: 222 47% 6%;
-  --fg: 220 20% 96%;
-  --panel: 224 37% 10%;
-  --panel-fg: 220 20% 96%;
-  --border: 220 17% 18%;
-  --accent: 38 96% 57%;
-  --accent-fg: 220 20% 10%;
-  --muted: 223 18% 16%;
-  --muted-fg: 222 12% 65%;
+  --bg: 221 42% 7%;
+  --fg: 214 24% 96%;
+  --panel: 221 29% 12%;
+  --panel-fg: 214 24% 96%;
+  --border: 216 20% 18%;
+  --accent: 39 94% 63%;
+  --accent-fg: 224 39% 10%;
+  --muted: 220 22% 16%;
+  --muted-fg: 216 13% 67%;
 }
 
 * {
@@ -19,22 +19,53 @@
 }
 
 html {
+  color-scheme: dark;
   background:
-    radial-gradient(circle at top left, rgba(245, 185, 66, 0.10), transparent 28%),
-    radial-gradient(circle at top right, rgba(76, 201, 240, 0.08), transparent 26%),
-    linear-gradient(180deg, #090d16 0%, #05070c 100%);
+    radial-gradient(circle at top left, rgba(252, 186, 73, 0.14), transparent 26%),
+    radial-gradient(circle at top right, rgba(101, 183, 255, 0.10), transparent 24%),
+    linear-gradient(180deg, #0b1018 0%, #080b12 100%);
 }
 
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(245, 185, 66, 0.08), transparent 24%),
-    radial-gradient(circle at right 20%, rgba(76, 201, 240, 0.06), transparent 24%),
-    linear-gradient(180deg, rgba(9, 13, 22, 0.96), rgba(5, 7, 12, 1));
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgba(252, 186, 73, 0.10), transparent 24%),
+    radial-gradient(circle at right 15%, rgba(101, 183, 255, 0.08), transparent 22%),
+    linear-gradient(180deg, rgba(11, 16, 24, 0.98), rgba(8, 11, 18, 1));
+  background-size:
+    32px 32px,
+    32px 32px,
+    auto,
+    auto,
+    auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgba(245, 185, 66, 0.28);
+  background: rgba(252, 186, 73, 0.28);
   color: white;
 }
 
+a,
+button,
+input,
+select {
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-fg antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.025em;
+  }
+}

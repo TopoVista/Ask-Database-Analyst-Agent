@@ -28,7 +28,7 @@ const config: Config = {
         mono: ["var(--font-mono)", "monospace"],
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(255,255,255,0.06), 0 18px 60px rgba(0,0,0,0.45)",
+        glow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 70px rgba(1,8,20,0.38)",
       },
       backgroundImage: {
         "aurora-grid":
@@ -40,4 +40,3 @@ const config: Config = {
 };
 
 export default config;
-

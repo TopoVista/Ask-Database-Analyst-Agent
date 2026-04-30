@@ -20,20 +20,20 @@ export function SchemaTree({ schema }: { schema: DatabaseSchema | null }) {
             <CardTitle>{name}</CardTitle>
             <CardDescription>{table.row_count_estimate ?? 0} estimated rows</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-2">
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
               {table.columns.map((column) => (
-                <div key={column.name} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                  <div className="flex items-center justify-between">
+                <div key={column.name} className="rounded-[22px] border border-white/10 bg-[rgba(9,15,25,0.9)] px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-fg">{column.name}</span>
                     <span className="font-mono text-xs text-muted-fg">{column.type}</span>
                   </div>
-                  <div className="mt-1 text-xs text-muted-fg">{column.nullable ? "nullable" : "required"}</div>
+                  <div className="mt-2 text-xs text-muted-fg">{column.nullable ? "nullable" : "required"}</div>
                 </div>
               ))}
             </div>
             {table.sample_rows?.length ? (
-              <details className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <details className="rounded-[22px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4">
                 <summary className="cursor-pointer text-sm font-medium text-fg">Sample rows</summary>
                 <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">
                   {JSON.stringify(table.sample_rows, null, 2)}
@@ -46,4 +46,3 @@ export function SchemaTree({ schema }: { schema: DatabaseSchema | null }) {
     </div>
   );
 }
-

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import type { QueryResult } from "@/types/agent";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { DataTable } from "./DataTable";
 import { ChartRenderer } from "./ChartRenderer";
@@ -17,23 +17,24 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Query Results
-            <AnomalyBadge severity={first.success ? "low" : "medium"} />
-          </CardTitle>
+        <CardHeader className="border-b border-white/10">
+          <div className="flex flex-wrap items-center gap-3">
+            <CardTitle className="flex items-center gap-2">
+              Query results
+              <AnomalyBadge severity={first.success ? "low" : "medium"} />
+            </CardTitle>
+          </div>
+          <CardDescription>Primary result view with the returned data, the SQL that produced it, and execution status.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-[1.4fr,1fr]">
             <ChartRenderer rows={first.rows} />
             <div className="space-y-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-muted-fg">SQL</p>
-                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">
-                  {first.sql}
-                </pre>
+              <div className="rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4">
+                <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-muted-fg">SQL used</p>
+                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">{first.sql}</pre>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-fg">
+              <div className="rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4 text-sm text-muted-fg">
                 <ResultStatus result={first} fallbackLabel={rowLabel} />
               </div>
             </div>
@@ -46,15 +47,13 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
       {results.slice(1).map((result) => (
         <Card key={result.taskId}>
           <CardHeader>
-            <CardTitle className="text-sm">{result.taskDescription}</CardTitle>
+            <CardTitle className="text-base">{result.taskDescription}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">
-                {result.sql}
-              </pre>
+            <div className="rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4">
+              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">{result.sql}</pre>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-fg">
+            <div className="rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4 text-sm text-muted-fg">
               <ResultStatus
                 result={result}
                 fallbackLabel={`${result.rowCount ?? result.rows.length} ${result.rowCount === 1 || result.rows.length === 1 ? "row" : "rows"} returned`}
@@ -67,7 +66,7 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
 
       <InsightCard
         title="What this means"
-        summary="The SQL and table below let you inspect the exact data behind the agent's answer."
+        summary="The SQL and tables above let you inspect the exact evidence behind the agent's answer."
       />
     </div>
   );

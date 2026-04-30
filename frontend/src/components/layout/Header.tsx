@@ -1,26 +1,62 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LayoutDashboard, History, Database, Sigma } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEMS = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Chat" },
+  { href: "/history", icon: History, label: "History" },
+  { href: "/connections", icon: Database, label: "Connections" },
+  { href: "/schema", icon: Sigma, label: "Schema" },
+];
+
+const PAGE_LABELS: Record<string, string> = {
+  "/dashboard": "Analytical workspace",
+  "/history": "Session history",
+  "/connections": "Connection management",
+  "/schema": "Schema explorer",
+};
 
 export function Header() {
+  const pathname = usePathname();
+  const currentLabel = PAGE_LABELS[pathname] ?? "Decision Intelligence";
+
   return (
-    <header className="border-b border-white/10 bg-slate-950/70 px-4 py-3 backdrop-blur-md md:px-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <Badge className="border-accent/30 bg-accent/12 text-accent">Decision Agent</Badge>
-          <nav className="hidden items-center gap-1 md:flex">
-            <NavLink href="/dashboard" icon={<LayoutDashboard className="h-3.5 w-3.5" />} label="Chat" />
-            <NavLink href="/history" icon={<History className="h-3.5 w-3.5" />} label="History" />
-            <NavLink href="/connections" icon={<Database className="h-3.5 w-3.5" />} label="Connections" />
-            <NavLink href="/schema" icon={<Sigma className="h-3.5 w-3.5" />} label="Schema" />
-          </nav>
+    <header className="sticky top-0 z-20 border-b border-white/10 bg-[rgba(6,10,17,0.82)] px-4 py-4 backdrop-blur-xl md:px-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <Badge className="border-accent/20 bg-accent/10 text-accent">Decision Intelligence</Badge>
+            <p className="hidden text-xs text-muted-fg md:block">Schema-first analytical reasoning</p>
+          </div>
+          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-fg">Workspace</p>
+              <h2 className="mt-1 truncate text-xl font-semibold text-fg">{currentLabel}</h2>
+            </div>
+            <nav className="hidden items-center gap-2 md:flex lg:hidden">
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    icon={<Icon className="h-3.5 w-3.5" />}
+                    label={item.label}
+                    active={pathname === item.href}
+                  />
+                );
+              })}
+            </nav>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 xl:justify-end">
           <ConnectionSelector />
           <UserButton afterSignOutUrl="/" />
         </div>
@@ -29,11 +65,16 @@ export function Header() {
   );
 }
 
-function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+function NavLink({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-fg transition hover:bg-white/10"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-[background-color,border-color,color]",
+        active
+          ? "border-white/16 bg-white/10 text-fg"
+          : "border-white/10 bg-white/5 text-fg/76 hover:border-white/14 hover:bg-white/8 hover:text-fg"
+      )}
     >
       {icon}
       {label}

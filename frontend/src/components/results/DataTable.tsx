@@ -20,10 +20,10 @@ export function DataTable({
   const headers = columns.length ? columns : Object.keys(rows[0] ?? {});
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)]">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-white/10 text-sm">
-          <thead className="bg-white/5 text-left text-[11px] uppercase tracking-[0.2em] text-muted-fg">
+          <thead className="bg-white/5 text-left text-[11px] uppercase tracking-[0.22em] text-muted-fg">
             <tr>
               {headers.map((column) => (
                 <th key={column} className="px-4 py-3 font-medium">
@@ -36,7 +36,7 @@ export function DataTable({
             {rows.map((row, index) => (
               <tr key={index} className="hover:bg-white/5">
                 {headers.map((column) => (
-                  <td key={column} className="max-w-[16rem] px-4 py-3 text-fg/90">
+                  <td key={column} className="max-w-[16rem] px-4 py-3 text-fg/88">
                     {formatCell(row[column])}
                   </td>
                 ))}

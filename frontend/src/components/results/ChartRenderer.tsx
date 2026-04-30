@@ -84,18 +84,18 @@ export function ChartRenderer({ rows }: { rows: Record<string, unknown>[] }) {
           {chartData.length > 1 ? (
             <LineChart data={chartData}>
               <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-              <XAxis dataKey={categoricalKey ?? metricKey} tick={{ fill: "#a7b0bf", fontSize: 12 }} />
-              <YAxis tick={{ fill: "#a7b0bf", fontSize: 12 }} />
-              <Tooltip contentStyle={{ background: "#08101f", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12 }} />
-              <Line type="monotone" dataKey={metricKey} stroke="#f5b942" strokeWidth={2.5} dot={false} />
+              <XAxis dataKey={categoricalKey ?? metricKey} tick={{ fill: "#9aa6ba", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#9aa6ba", fontSize: 12 }} />
+              <Tooltip contentStyle={{ background: "#0a1322", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16 }} />
+              <Line type="monotone" dataKey={metricKey} stroke="#fcba49" strokeWidth={2.5} dot={false} />
             </LineChart>
           ) : (
             <BarChart data={chartData}>
               <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-              <XAxis dataKey={categoricalKey ?? metricKey} tick={{ fill: "#a7b0bf", fontSize: 12 }} />
-              <YAxis tick={{ fill: "#a7b0bf", fontSize: 12 }} />
-              <Tooltip contentStyle={{ background: "#08101f", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12 }} />
-              <Bar dataKey={metricKey} fill="#4cc9f0" radius={[8, 8, 0, 0]} />
+              <XAxis dataKey={categoricalKey ?? metricKey} tick={{ fill: "#9aa6ba", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#9aa6ba", fontSize: 12 }} />
+              <Tooltip contentStyle={{ background: "#0a1322", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16 }} />
+              <Bar dataKey={metricKey} fill="#65b7ff" radius={[8, 8, 0, 0]} />
             </BarChart>
           )}
         </ResponsiveContainer>

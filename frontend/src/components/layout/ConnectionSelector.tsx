@@ -35,7 +35,11 @@ export function ConnectionSelector() {
   }, [data, activeConnectionId, setActiveConnection, setConnections, setMirrorConnection]);
 
   if (!connections.length) {
-    return <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-fg">No connections</div>;
+    return (
+      <div className="rounded-2xl border border-white/10 bg-[rgba(11,18,30,0.92)] px-3.5 py-2.5 text-xs text-muted-fg">
+        No connections
+      </div>
+    );
   }
 
   return (
@@ -45,7 +49,9 @@ export function ConnectionSelector() {
         setActiveConnection(event.target.value);
         setMirrorConnection(event.target.value);
       }}
-      className={cn("h-10 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm text-fg outline-none")}
+      className={cn(
+        "h-11 min-w-[13rem] rounded-2xl border border-white/10 bg-[rgba(11,18,30,0.92)] px-4 text-sm text-fg outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/18"
+      )}
     >
       {connections.map((connection) => (
         <option key={connection.id} value={connection.id}>
