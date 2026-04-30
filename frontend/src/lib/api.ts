@@ -1,6 +1,20 @@
 import { API_URL } from "@/lib/constants";
 import type { ConnectionCreate, ConnectionRead, QueryHistoryRead, SessionRead, SchemaResponse } from "@/types/api";
 
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text.trim()) {
+    throw new Error("Server returned an empty response.");
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    console.error("INVALID JSON RESPONSE:", text);
+    throw new Error("Invalid response from server.");
+  }
+}
+
 async function apiFetch<T>(path: string, token?: string | null, init: RequestInit = {}): Promise<T> {
   try {
     const url = `${API_URL}${path}`;
@@ -45,7 +59,7 @@ async function apiFetch<T>(path: string, token?: string | null, init: RequestIni
       return undefined as T;
     }
 
-    return await response.json();
+    return await readJsonResponse<T>(response);
   } catch (err) {
     console.error("FETCH FAILED:", err);
     throw err;

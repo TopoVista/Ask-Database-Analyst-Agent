@@ -45,11 +45,19 @@ export default function ConnectionsPage() {
     try {
       const token = await getToken();
       const created = await createConnection(form, token);
+      queryClient.setQueryData(
+        ["connections"],
+        (existing: Array<(typeof created)> | undefined = []) => [created, ...existing.filter((item) => item.id !== created.id)]
+      );
+
       setStatus(`Connection verified and saved for ${created.name}.`);
       setForm(INITIAL_FORM);
-      await queryClient.invalidateQueries({ queryKey: ["connections"] });
       setActiveConnection(created.id);
       setChatConnection(created.id);
+
+      queryClient.invalidateQueries({ queryKey: ["connections"] }).catch((error) => {
+        console.error("Unable to refresh connections after save:", error);
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to save the connection.");
     } finally {
@@ -65,6 +73,7 @@ export default function ConnectionsPage() {
       await deleteConnection(connectionId, token);
       const remainingConnections = (tokenQuery.data ?? []).filter((connection) => connection.id !== connectionId);
       const nextActiveId = remainingConnections[0]?.id ?? null;
+      queryClient.setQueryData(["connections"], remainingConnections);
 
       if (activeConnectionId === connectionId) {
         setActiveConnection(nextActiveId);
@@ -74,8 +83,12 @@ export default function ConnectionsPage() {
       }
 
       setStatus("Connection removed.");
-      await queryClient.invalidateQueries({ queryKey: ["connections"] });
-      await queryClient.invalidateQueries({ queryKey: ["schema"] });
+      queryClient.invalidateQueries({ queryKey: ["connections"] }).catch((error) => {
+        console.error("Unable to refresh connections after delete:", error);
+      });
+      queryClient.invalidateQueries({ queryKey: ["schema"] }).catch((error) => {
+        console.error("Unable to refresh schema after delete:", error);
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to delete the connection.");
     } finally {
