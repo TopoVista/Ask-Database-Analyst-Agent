@@ -3,7 +3,13 @@ import type { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND_API_URL = (process.env.BACKEND_API_URL ?? "http://127.0.0.1:8001").replace(/\/+$/, "");
+const DEFAULT_PRODUCTION_BACKEND_URL = "https://autonomous-decision-intelligence-engine.onrender.com";
+
+const BACKEND_API_URL = (
+  process.env.BACKEND_API_URL ??
+  process.env.NEXT_PUBLIC_BACKEND_API_URL ??
+  (process.env.VERCEL ? DEFAULT_PRODUCTION_BACKEND_URL : "http://127.0.0.1:8011")
+).replace(/\/+$/, "");
 
 type RouteContext = {
   params: {

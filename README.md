@@ -38,6 +38,11 @@ npm install
 npm run dev
 ```
 
+Frontend env notes:
+- Leave `NEXT_PUBLIC_API_URL` empty to use the built-in Next.js `/api/*` proxy.
+- Set `BACKEND_API_URL` and `NEXT_PUBLIC_BACKEND_API_URL` to the FastAPI origin the proxy should forward to.
+- For local development, `http://127.0.0.1:8011` is the expected backend URL.
+
 ## Notes
 
 - The backend has safe local fallbacks for OpenAI, Redis, and SQLite so the project can run in a lightweight dev setup.
