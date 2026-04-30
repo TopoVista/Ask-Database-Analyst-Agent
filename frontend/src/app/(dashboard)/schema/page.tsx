@@ -11,11 +11,13 @@ import { useChatStore } from "@/stores/chatStore";
 import { cn } from "@/lib/utils";
 
 export default function SchemaPage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
   const { activeConnectionId, setActiveConnection } = useChatStore();
   const connections = useQuery({
     queryKey: ["connections"],
     queryFn: async () => listConnections(await getToken()),
+    enabled: isLoaded && Boolean(userId),
+    retry: false,
   });
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -36,7 +38,8 @@ export default function SchemaPage() {
   const schemaQuery = useQuery({
     queryKey: ["schema", activeConnectionId, refreshKey],
     queryFn: async () => (activeConnectionId ? getSchema(activeConnectionId, await getToken()) : null),
-    enabled: Boolean(activeConnectionId),
+    enabled: isLoaded && Boolean(userId) && Boolean(activeConnectionId),
+    retry: false,
   });
 
   const schema = schemaQuery.data?.schema ?? null;

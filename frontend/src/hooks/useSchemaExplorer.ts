@@ -5,7 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { getSchema } from "@/lib/api";
 
 export function useSchemaExplorer(connectionId: string | null) {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
   return useQuery({
     queryKey: ["schema", connectionId],
     queryFn: async () => {
@@ -13,7 +13,7 @@ export function useSchemaExplorer(connectionId: string | null) {
       const token = await getToken();
       return getSchema(connectionId, token);
     },
-    enabled: Boolean(connectionId),
+    enabled: isLoaded && Boolean(userId) && Boolean(connectionId),
+    retry: false,
   });
 }
-

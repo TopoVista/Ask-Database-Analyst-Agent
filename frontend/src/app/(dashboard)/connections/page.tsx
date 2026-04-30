@@ -60,7 +60,7 @@ export default function ConnectionsPage() {
       setActiveConnection(created.id);
       setChatConnection(created.id);
 
-      queryClient.invalidateQueries({ queryKey: ["connections"] }).catch((error) => {
+      queryClient.invalidateQueries({ queryKey: ["connections"], refetchType: "none" }).catch((error) => {
         console.error("Unable to refresh connections after save:", error);
       });
     } catch (error) {
@@ -91,12 +91,10 @@ export default function ConnectionsPage() {
       }
 
       setStatus("Connection removed.");
-      queryClient.invalidateQueries({ queryKey: ["connections"] }).catch((error) => {
+      queryClient.invalidateQueries({ queryKey: ["connections"], refetchType: "none" }).catch((error) => {
         console.error("Unable to refresh connections after delete:", error);
       });
-      queryClient.invalidateQueries({ queryKey: ["schema"] }).catch((error) => {
-        console.error("Unable to refresh schema after delete:", error);
-      });
+      queryClient.removeQueries({ queryKey: ["schema", connectionId] });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to delete the connection.");
     } finally {
