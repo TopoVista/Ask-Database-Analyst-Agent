@@ -14,3 +14,4 @@ sentry-sdk[fastapi]==2.9.0
 tenacity==8.4.1
 sqlglot==25.31.4
 redis==5.0.8
+asyncpg
