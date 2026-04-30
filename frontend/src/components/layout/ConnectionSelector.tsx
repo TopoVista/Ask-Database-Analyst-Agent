@@ -9,13 +9,15 @@ import { useConnectionStore } from "@/stores/connectionStore";
 import { cn } from "@/lib/utils";
 
 export function ConnectionSelector() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
   const { activeConnectionId, setActiveConnection } = useChatStore();
   const { connections, setConnections, setActiveConnection: setMirrorConnection } = useConnectionStore();
 
   const { data } = useQuery({
     queryKey: ["connections"],
     queryFn: async () => listConnections(await getToken()),
+    enabled: isLoaded && Boolean(userId),
+    retry: false,
   });
 
   useEffect(() => {

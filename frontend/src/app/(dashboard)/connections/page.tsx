@@ -29,7 +29,7 @@ export default function ConnectionsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isTestingId, setIsTestingId] = useState<string | null>(null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
   const queryClient = useQueryClient();
   const { activeConnectionId, setActiveConnection } = useConnectionStore();
   const { activeConnectionId: chatActiveConnectionId, setActiveConnection: setChatConnection } = useChatStore();
@@ -37,12 +37,17 @@ export default function ConnectionsPage() {
   const tokenQuery = useQuery({
     queryKey: ["connections"],
     queryFn: async () => listConnections(await getToken()),
+    enabled: isLoaded && Boolean(userId),
+    retry: false,
   });
 
   const submit = async () => {
     setStatus(null);
     setIsSaving(true);
     try {
+      if (!isLoaded || !userId) {
+        throw new Error("Sign in again to save a connection.");
+      }
       const token = await getToken();
       const created = await createConnection(form, token);
       queryClient.setQueryData(
@@ -69,6 +74,9 @@ export default function ConnectionsPage() {
     setStatus(null);
     setIsDeletingId(connectionId);
     try {
+      if (!isLoaded || !userId) {
+        throw new Error("Sign in again to manage connections.");
+      }
       const token = await getToken();
       await deleteConnection(connectionId, token);
       const remainingConnections = (tokenQuery.data ?? []).filter((connection) => connection.id !== connectionId);
@@ -184,6 +192,9 @@ export default function ConnectionsPage() {
                       onClick={async () => {
                         setIsTestingId(connection.id);
                         try {
+                          if (!isLoaded || !userId) {
+                            throw new Error("Sign in again to test connections.");
+                          }
                           const token = await getToken();
                           const result = await testConnection(connection.id, token);
                           setStatus(result.message);
