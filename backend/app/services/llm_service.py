@@ -11,6 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import get_settings
 from app.memory.query_cache import QueryCache
+from app.tools.chart_recommender import recommend_chart
 
 try:  # pragma: no cover - optional dependency
     from openai import APIError, AsyncOpenAI, RateLimitError
@@ -450,5 +451,22 @@ class LLMService:
             except Exception:
                 analysis = {}
             return json.dumps(_local_hypotheses(question, analysis))
+        if "data visualization expert" in prompt:
+            # Non-greedy match so the columns array does not swallow the
+            # "Sample rows" line that follows it (greedy `\[.*\]` with
+            # re.DOTALL spans both and breaks json parsing).
+            cols_match = re.search(r"Columns:\s*(\[.*?\])\s*\n", user_prompt, re.DOTALL)
+            rows_match = re.search(r"Sample rows:\s*(\[.*\])", user_prompt, re.DOTALL)
+            task_match = re.search(r"Task:\s*(.+)", user_prompt)
+            try:
+                columns = json.loads(cols_match.group(1)) if cols_match else []
+            except Exception:
+                columns = []
+            try:
+                rows = json.loads(rows_match.group(1)) if rows_match else []
+            except Exception:
+                rows = []
+            task_description = task_match.group(1).strip() if task_match else None
+            return json.dumps(recommend_chart(columns, rows, task_description))
         return question
 

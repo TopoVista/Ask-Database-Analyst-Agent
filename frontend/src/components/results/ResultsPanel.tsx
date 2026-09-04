@@ -28,7 +28,7 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-[1.4fr,1fr]">
-            <ChartRenderer rows={first.rows} />
+            <ChartRenderer rows={first.rows} chartSpec={first.chartSpec} />
             <div className="space-y-3">
               <div className="rounded-[24px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4">
                 <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-muted-fg">SQL used</p>

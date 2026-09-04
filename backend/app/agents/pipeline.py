@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 
 import structlog
 
+from app.agents.chart_recommender_agent import ChartRecommenderAgent
 from app.agents.hypothesis_agent import HypothesisAgent
 from app.agents.insight_agent import InsightAgent
 from app.agents.intent_agent import IntentAgent
@@ -27,6 +28,7 @@ class AgentPipeline:
         self.planner = PlannerAgent(self.llm)
         self.sql_gen = SQLGeneratorAgent(self.llm)
         self.result_analyzer = ResultAnalyzerAgent(self.llm)
+        self.chart_recommender = ChartRecommenderAgent(self.llm)
         self.hypothesis_agent = HypothesisAgent(self.llm)
         self.insight_agent = InsightAgent(self.llm)
         self.executor = SQLExecutor()
@@ -82,6 +84,12 @@ class AgentPipeline:
                 exec_result = await self.executor.execute(connection_string, sql)
                 if exec_result["success"]:
                     result = {**sql_result, **exec_result}
+                    if result.get("columns") and result.get("rows"):
+                        result["chart_spec"] = await self.chart_recommender.run(
+                            result["columns"],
+                            result["rows"],
+                            task_description=result.get("task_description"),
+                        )
                     break
                 if attempt < 2:
                     yield {
@@ -98,6 +106,8 @@ class AgentPipeline:
                     "task_description": task["description"],
                     "sql": result["sql"],
                     "rows": result.get("rows", [])[:5],
+                    "columns": result.get("columns", []),
+                    "chart_spec": result.get("chart_spec"),
                     "success": result.get("success"),
                     "row_count": result.get("row_count", 0),
                     "error": result.get("error"),

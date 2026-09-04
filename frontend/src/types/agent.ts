@@ -4,6 +4,14 @@ export interface AgentStep {
   timestamp: number;
 }
 
+export interface ChartSpec {
+  chart_type: "metric" | "line" | "bar" | "scatter" | "pie" | "table";
+  x: string | null;
+  y: string | null;
+  title: string;
+  rationale: string;
+}
+
 export interface QueryResult {
   taskId: string;
   taskDescription: string;
@@ -13,6 +21,7 @@ export interface QueryResult {
   success: boolean;
   rowCount?: number;
   error?: string | null;
+  chartSpec?: ChartSpec | null;
 }
 
 export interface InsightMetadata {

@@ -68,6 +68,7 @@ export function useStreamingQuery() {
                 success: Boolean(event.data.success),
                 rowCount: event.data.row_count ?? event.data.rows?.length ?? 0,
                 error: event.data.error ?? null,
+                chartSpec: event.data.chart_spec ?? null,
               });
               setCurrentResults([...queryResults]);
               break;
