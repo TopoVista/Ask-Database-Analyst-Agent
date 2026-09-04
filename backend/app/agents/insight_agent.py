@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from app.agents.base import BaseAgent
+from app.services.redaction import mask_pii_in_query_results
 
 
 INSIGHT_SYSTEM_PROMPT = """You are a senior business analyst synthesizing all evidence into a concise narrative.
@@ -23,7 +24,7 @@ class InsightAgent(BaseAgent):
         return f"""Question: {user_question}
 Intent: {json.dumps(intent, default=str)}
 Plan: {json.dumps(plan, default=str)}
-Query results: {json.dumps(query_results, default=str)[:8000]}
+Query results: {json.dumps(mask_pii_in_query_results(query_results), default=str)[:8000]}
 Analysis: {json.dumps(analysis, default=str)}
 Similar queries: {json.dumps(similar_queries or [], default=str)}
 """

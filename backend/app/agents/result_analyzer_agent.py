@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from app.agents.base import BaseAgent
+from app.services.redaction import mask_pii_in_rows
 from app.tools.anomaly_detector import AnomalyDetector
 
 
@@ -35,11 +36,13 @@ class ResultAnalyzerAgent(BaseAgent):
             if result.get("success") and result.get("rows"):
                 anomalies = self.anomaly_detector.detect(result["rows"], result["columns"])
                 statistical_anomalies.extend(anomalies)
+                # Redact raw row values before they are serialized into the prompt.
+                safe_rows = mask_pii_in_rows(result["rows"])
                 results_summary.append(
                     {
                         "task": result.get("task_description", "Task"),
                         "row_count": result.get("row_count", len(result["rows"])),
-                        "sample": result["rows"][:10],
+                        "sample": safe_rows[:10],
                         "columns": result["columns"],
                     }
                 )

@@ -39,3 +39,21 @@ async def test_sql_generator_strips_markdown_backticks(mock_llm):
     )
     assert "```" not in result["sql"]
 
+
+@pytest.mark.asyncio
+async def test_fix_sql_returns_normalized_sql_on_valid_fix(mock_llm):
+    mock_llm.complete = AsyncMock(return_value="SELECT id FROM orders LIMIT 5")
+    agent = SQLGeneratorAgent(mock_llm)
+    fixed = await agent.fix_sql("SELECT id FRM orders", "syntax error", "orders (id int)")
+    assert fixed == "SELECT id FROM orders LIMIT 5"
+
+
+@pytest.mark.asyncio
+async def test_fix_sql_returns_none_when_fix_is_invalid(mock_llm):
+    # A non-SQL "fix" must NOT fall back to a fake placeholder; it should return
+    # None so the pipeline can surface an explicit failure.
+    mock_llm.complete = AsyncMock(return_value="This is not SQL at all")
+    agent = SQLGeneratorAgent(mock_llm)
+    fixed = await agent.fix_sql("SELECT id FRM orders", "syntax error", "orders (id int)")
+    assert fixed is None
+

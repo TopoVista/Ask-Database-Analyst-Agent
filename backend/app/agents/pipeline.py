@@ -68,6 +68,17 @@ class AgentPipeline:
             sql = sql_result["sql"]
             result = None
             for attempt in range(3):
+                if sql is None:
+                    result = {
+                        **sql_result,
+                        "success": False,
+                        "rows": [],
+                        "columns": [],
+                        "row_count": 0,
+                        "error": "Unable to produce a valid query for this step after repeated attempts. "
+                        "Please rephrase the question or verify the table/column names against the schema.",
+                    }
+                    break
                 exec_result = await self.executor.execute(connection_string, sql)
                 if exec_result["success"]:
                     result = {**sql_result, **exec_result}

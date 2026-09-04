@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.agents.base import BaseAgent
+from app.services.redaction import mask_pii_in_rows
 from app.tools.sql_validator import validate_sql
 
 
@@ -49,7 +50,8 @@ class SQLGeneratorAgent(BaseAgent):
         if previous_results:
             context_str = "\nPrevious query results context:\n"
             for result in previous_results[-2:]:
-                context_str += f"- {result.get('task_description', 'Task')}: {str(result.get('sample', result.get('rows', [])))[:200]}\n"
+                safe_rows = mask_pii_in_rows(result.get("rows", []))
+                context_str += f"- {result.get('task_description', 'Task')}: {str(safe_rows)[:200]}\n"
 
         prompt = f"""Task: {task['description']}
 Purpose: {task.get('purpose', '')}
@@ -70,7 +72,13 @@ Schema:
             self.logger.warning("sql_syntax_invalid_pre_execution", error=validation.reason)
         return {"task_id": task["id"], "task_description": task["description"], "sql": validation.normalized_sql or sql}
 
-    async def fix_sql(self, sql: str, error: str, schema_context: str) -> str:
+    async def fix_sql(self, sql: str, error: str, schema_context: str) -> str | None:
+        """Attempt to repair a failing query.
+
+        Returns the fixed SQL string, or ``None`` if a repair could not be
+        produced/validated — signalling the caller to surface an explicit
+        failure rather than silently substituting a fake placeholder query.
+        """
         prompt = f"""Failing SQL:
 {sql}
 
@@ -87,4 +95,7 @@ Schema context:
         )
         fixed = _strip_sql_fences(fixed)
         validation = validate_sql(fixed)
-        return validation.normalized_sql if validation.is_valid else "SELECT 1 AS value LIMIT 1"
+        if not validation.is_valid:
+            self.logger.warning("sql_fix_failed", reason=validation.reason)
+            return None
+        return validation.normalized_sql

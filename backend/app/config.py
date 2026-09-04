@@ -34,7 +34,14 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 20
     cache_ttl_schema: int = 3600
     cache_ttl_query: int = 300
-    ollama_base_url: str = "http://localhost:11434"
+    # Ollama is an opt-in local-LLM fallback tier. Leave empty to disable.
+    # When set, the LLM service tries OpenAI first (if a key is present), then
+    # this local endpoint, and finally the deterministic offline fallback.
+    ollama_base_url: str = ""
+    ollama_model: str = "llama3.2"
+    # When true, row-level values are redacted (PII columns masked, long strings
+    # truncated) before being serialized into LLM prompts.
+    redact_pii_in_prompts: bool = True
     auth_bypass: bool = False
 
     @model_validator(mode="after")

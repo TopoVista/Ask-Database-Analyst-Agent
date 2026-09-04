@@ -27,6 +27,12 @@ except Exception:  # pragma: no cover - fallback
 logger = structlog.get_logger()
 settings = get_settings()
 
+# Sentinel returned by the offline LLM fallback when it cannot produce a valid
+# SQL fix. It intentionally fails ``sql_validator`` (does not start with
+# SELECT/WITH), so callers surface a clear failure instead of silently emitting
+# a fake "successful" placeholder query.
+LOCAL_SQL_FIX_UNAVAILABLE = "SQL_FIX_UNAVAILABLE_LOCAL_MODE"
+
 
 def _extract_json_text(text: str) -> str:
     text = text.strip()
@@ -322,6 +328,8 @@ class LLMService:
             if cached:
                 return cached
 
+        result: str | None = None
+
         if self.client is not None:
             try:
                 response = await self.client.chat.completions.create(
@@ -334,9 +342,6 @@ class LLMService:
                     max_tokens=max_tokens,
                 )
                 result = response.choices[0].message.content or ""
-                if use_cache:
-                    await self.cache.set(cache_key, result)
-                return result
             except RateLimitError:
                 logger.warning("openai_rate_limit_fallback_to_ollama")
             except APIError as exc:
@@ -344,10 +349,46 @@ class LLMService:
             except Exception as exc:
                 logger.error("openai_unknown_error", error=str(exc))
 
-        result = self._local_complete(system_prompt, user_prompt)
+        if result is None:
+            result = await self._ollama_complete(system_prompt, user_prompt, temperature, max_tokens)
+
+        if result is None:
+            result = self._local_complete(system_prompt, user_prompt)
+
         if use_cache and result:
             await self.cache.set(cache_key, result)
         return result
+
+    async def _ollama_complete(
+        self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int
+    ) -> str | None:
+        """Call a self-hosted Ollama endpoint as a privacy-preserving LLM tier.
+
+        Returns ``None`` when Ollama is not configured or the request fails, so
+        the caller can continue to the deterministic offline fallback.
+        """
+        if not settings.ollama_base_url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    f"{settings.ollama_base_url.rstrip('/')}/api/chat",
+                    json={
+                        "model": settings.ollama_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "stream": False,
+                        "options": {"temperature": temperature, "num_predict": max_tokens},
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
+                return payload.get("message", {}).get("content")
+        except Exception as exc:
+            logger.warning("ollama_completion_error", error=str(exc))
+            return None
 
     async def stream_complete(self, system_prompt: str, user_prompt: str):
         text = await self.complete(system_prompt, user_prompt, temperature=0.2, max_tokens=3000, use_cache=False)
@@ -373,8 +414,13 @@ class LLMService:
             return _make_select_sql(question, schema_context, task_description)
         if "expert postgresql debugger" in prompt:
             sql_match = re.search(r"Failing SQL:\n(.*?)\n\nError:", user_prompt, re.DOTALL)
-            sql = sql_match.group(1).strip() if sql_match else "SELECT 1 AS value LIMIT 1"
-            return sql if sql.lower().startswith("select") or sql.lower().startswith("with") else "SELECT 1 AS value LIMIT 1"
+            sql = sql_match.group(1).strip() if sql_match else ""
+            # Without a real model we cannot repair SQL. Echoing the failing query
+            # back would only retry the same failure; emitting a fake placeholder
+            # would report a misleading "success". Signal the caller explicitly.
+            if not sql:
+                return LOCAL_SQL_FIX_UNAVAILABLE
+            return sql if sql.lower().startswith("select") or sql.lower().startswith("with") else LOCAL_SQL_FIX_UNAVAILABLE
         if "quantitative data analyst" in prompt:
             try:
                 summary_match = re.search(r"Query results to analyze:\n(.*)", user_prompt, re.DOTALL)

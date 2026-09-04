@@ -19,6 +19,8 @@ coverage.xml
 *.pyd
 *.sqlite3
 *.db
+*.log
+*.tsbuildinfo
 backend/.env
 frontend/.env.local
 backend/alembic/versions/__pycache__/
