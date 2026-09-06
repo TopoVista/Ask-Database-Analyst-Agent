@@ -34,6 +34,11 @@ async def create_connection(
         conn = await service.create_connection(user.id, request)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create connection: {str(exc)}",
+        ) from exc
     return conn
 
 
@@ -45,10 +50,18 @@ async def test_connection(
 ):
     user = await ensure_user(db, current_user)
     service = ConnectionService(db)
-    result = await service.test_connection(connection_id, user.id)
-    if not result["success"] and result["message"] == "Connection not found":
-        raise HTTPException(status_code=404, detail="Connection not found")
-    return result
+    try:
+        result = await service.test_connection(connection_id, user.id)
+        if not result["success"] and result["message"] == "Connection not found":
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to test connection: {str(exc)}",
+        ) from exc
 
 
 @router.delete("/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)

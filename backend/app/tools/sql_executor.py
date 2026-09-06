@@ -30,7 +30,19 @@ class SQLExecutor:
         if "LIMIT" not in normalized_sql.upper():
             normalized_sql = f"{normalized_sql} LIMIT {settings.max_query_rows}"
 
-        engine = create_async_engine(connection_string, future=True, pool_pre_ping=True)
+        try:
+            engine = create_async_engine(connection_string, future=True, pool_pre_ping=True)
+        except Exception as exc:
+            elapsed = int((time.monotonic() - start) * 1000)
+            return {
+                "success": False,
+                "rows": [],
+                "columns": [],
+                "row_count": 0,
+                "error": f"Failed to create database engine: {str(exc)}",
+                "execution_time_ms": elapsed,
+            }
+
         try:
             async with engine.connect() as conn:
                 result = await conn.execute(text(normalized_sql))
@@ -53,6 +65,16 @@ class SQLExecutor:
                 "columns": [],
                 "row_count": 0,
                 "error": str(exc),
+                "execution_time_ms": elapsed,
+            }
+        except Exception as exc:
+            elapsed = int((time.monotonic() - start) * 1000)
+            return {
+                "success": False,
+                "rows": [],
+                "columns": [],
+                "row_count": 0,
+                "error": f"Unexpected error: {str(exc)}",
                 "execution_time_ms": elapsed,
             }
         finally:
