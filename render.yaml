@@ -1,0 +1,40 @@
+version: "1"
+
+services:
+  - type: web
+    name: ask-database-analyst
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter            # free 512 MB tier
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+
+    envVars:
+      # ── Required secrets (set in Render dashboard, never commit) ──────────
+      - key: OPENAI_API_KEY
+        sync: false          # injected from Render environment group
+
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+
+      # ── App tuning ────────────────────────────────────────────────────────
+      - key: ENVIRONMENT
+        value: production
+
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./data/app.db
+
+      - key: LOG_LEVEL
+        value: warning       # reduce noise / memory overhead in prod
+
+      - key: PYTHONOPTIMIZE
+        value: "1"
+
+    # Persist the SQLite data file across deploys with a Render disk.
+    # 1 GB disk is free on the starter plan (as of 2024).
+    disk:
+      name: sqlite-data
+      mountPath: /app/data
+      sizeGB: 1

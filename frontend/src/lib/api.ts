@@ -100,3 +100,76 @@ export async function listSessions(token?: string | null) {
 export async function getSession(sessionId: string, token?: string | null) {
   return apiFetch<{ session: SessionRead; history: QueryHistoryRead[] }>(`/api/v1/sessions/${sessionId}`, token);
 }
+
+// --- Documents (RAG) ---
+
+export interface DocumentUploadResult {
+  source: string;
+  num_chunks: number;
+  status: string;
+  document_type?: string;
+  document_size_bytes?: number;
+}
+
+export interface DocumentSearchResult {
+  chunk_text: string;
+  source: string;
+  chunk_index: number;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
+export async function uploadDocument(file: File, token?: string | null) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch<DocumentUploadResult>("/api/v1/documents/upload", token, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function searchDocuments(query: string, token?: string | null, limit = 5) {
+  return apiFetch<{ query: string; results: DocumentSearchResult[]; count: number }>(
+    `/api/v1/documents/search?query=${encodeURIComponent(query)}&limit=${limit}`,
+    token,
+    { method: "POST" }
+  );
+}
+
+// --- Specialists ---
+
+export interface SpecialistInfo {
+  id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  supported_data_types: string[];
+  tools: string[];
+  available: boolean;
+}
+
+export async function listSpecialists(token?: string | null) {
+  return apiFetch<{ specialists: SpecialistInfo[]; count: number }>("/api/v1/specialists/", token);
+}
+
+// --- Evaluation ---
+
+export interface AuditFinding {
+  severity: string;
+  category: string;
+  message: string;
+  details: string;
+}
+
+export interface SecurityAuditResult {
+  passed: boolean;
+  findings: AuditFinding[];
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+}
+
+export async function runSecurityAudit(token?: string | null) {
+  return apiFetch<SecurityAuditResult>("/api/v1/evaluation/security-audit", token);
+}

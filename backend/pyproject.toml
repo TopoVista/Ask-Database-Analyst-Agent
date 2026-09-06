@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["app/tests"]
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 line-length = 100

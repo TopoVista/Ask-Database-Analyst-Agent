@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # truncated) before being serialized into LLM prompts.
     redact_pii_in_prompts: bool = True
     auth_bypass: bool = False
+    # Directory where ingested dataset SQLite files are stored.
+    uploads_dir: str = "./uploads"
+    max_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
+    # Chroma vector store for RAG (optional). Leave chroma_host empty to use
+    # the in-process fallback store.
+    chroma_host: str = ""
+    chroma_port: int = 8000
 
     @model_validator(mode="after")
     def parse_allowed_origins(self) -> "Settings":

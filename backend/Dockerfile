@@ -2,17 +2,26 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Keeps Python from writing .pyc files and enables optimised mode
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONOPTIMIZE=1
 
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies first (cached layer)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
 COPY app ./app
 COPY alembic ./alembic
 COPY pyproject.toml ./
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+# Single worker + uvloop to stay within 512 MB free-tier RAM
+CMD ["uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--loop", "uvloop"]
