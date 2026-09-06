@@ -22,6 +22,9 @@ COPY app ./app
 COPY alembic ./alembic
 COPY pyproject.toml ./
 
+# Create directory for SQLite database
+RUN mkdir -p /app/data
+
 EXPOSE 8000
 
 # Single worker + uvloop to stay within 512 MB free-tier RAM
