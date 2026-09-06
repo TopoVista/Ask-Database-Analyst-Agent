@@ -16,7 +16,7 @@ DEFAULT_LOCAL_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ENV_FILE), env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "sqlite+aiosqlite:///./decision_intelligence.db"
+    database_url: str = "sqlite+aiosqlite:////app/data/app.db"
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str = ""
     clerk_secret_key: str = ""
@@ -64,6 +64,26 @@ class Settings(BaseSettings):
                 self.allowed_origin_regex = f"{DEFAULT_LOCAL_ORIGIN_REGEX}|{DEFAULT_VERCEL_ORIGIN_REGEX}"
             else:
                 self.allowed_origin_regex = DEFAULT_VERCEL_ORIGIN_REGEX
+        return self
+
+    @model_validator(mode="after")
+    def normalize_database_url(self) -> "Settings":
+        """Render auto-injects DATABASE_URL as postgres:// when a PG service is
+        attached.  Since we run on the free SQLite-only stack (no asyncpg),
+        detect any postgres URL and silently swap it for the local SQLite file.
+        """
+        url = self.database_url
+        if any(
+            url.startswith(p)
+            for p in ("postgres://", "postgresql://", "postgresql+asyncpg://", "postgresql+psycopg")
+        ):
+            import warnings
+            warnings.warn(
+                "DATABASE_URL points to PostgreSQL but asyncpg is not installed. "
+                "Falling back to SQLite. Set DATABASE_URL to a sqlite+aiosqlite:// URL to suppress this.",
+                stacklevel=2,
+            )
+            self.database_url = "sqlite+aiosqlite:////app/data/app.db"
         return self
 
 

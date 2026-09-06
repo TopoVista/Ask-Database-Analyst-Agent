@@ -19,7 +19,8 @@ from app.services.connection_service import ConnectionService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/queries", tags=["queries"])
-sessionmaker = get_sessionmaker()
+# sessionmaker is obtained lazily (inside route handlers) so the DB engine
+# is created after all env-vars / Settings validators have run.
 
 
 @router.post("/run")
