@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Dev / local files
+*.log
+*.db
+*.sqlite3
+.env
+.env.*
+dev.api.*.log
+nul
+decision_intelligence.db
+
+# Alembic migration cache
+alembic/versions/__pycache__/
+
+# Test artefacts
+app/tests/
+
+# Uploads (mounted separately at runtime)
+uploads/
+data/

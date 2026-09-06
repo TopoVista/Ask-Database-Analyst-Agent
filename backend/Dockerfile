@@ -7,6 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONOPTIMIZE=1
 
+# Install system deps required by cffi / cryptography wheels
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libffi8 \
+ && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (cached layer)
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
