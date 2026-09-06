@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FileText, FlaskConical, Brain, BarChart3 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,11 @@ const NAV_ITEMS = [
   { href: "/history", label: "History", icon: History },
   { href: "/connections", label: "Connections", icon: Database },
   { href: "/schema", label: "Schema", icon: Sigma },
+  { href: "/datasets", label: "Datasets", icon: FileSpreadsheet },
+  { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/simulation", label: "Simulation", icon: FlaskConical },
+  { href: "/specialists", label: "Specialists", icon: Brain },
+  { href: "/evaluation", label: "Evaluation", icon: BarChart3 },
 ];
 
 const NAV_COPY: Record<string, string> = {
@@ -18,6 +23,11 @@ const NAV_COPY: Record<string, string> = {
   "/history": "Review previous sessions",
   "/connections": "Manage database access",
   "/schema": "Inspect connected tables",
+  "/datasets": "Upload and profile data",
+  "/documents": "RAG document search",
+  "/simulation": "What-if scenario analysis",
+  "/specialists": "Specialized agent skills",
+  "/evaluation": "Benchmarks and audits",
 };
 
 export function Sidebar() {

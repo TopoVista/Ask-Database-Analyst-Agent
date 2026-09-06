@@ -173,3 +173,119 @@ export interface SecurityAuditResult {
 export async function runSecurityAudit(token?: string | null) {
   return apiFetch<SecurityAuditResult>("/api/v1/evaluation/security-audit", token);
 }
+
+// --- Datasets ---
+
+export interface DatasetRead {
+  id: string;
+  name: string;
+  filename: string;
+  source_type: string;
+  row_count: number | null;
+  column_count: number | null;
+  created_at: string;
+  descriptor: Record<string, unknown> | null;
+}
+
+export interface DatasetListResponse {
+  datasets: DatasetRead[];
+  total: number;
+}
+
+export interface TablePreviewResponse {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  total_rows: number;
+  preview_limit: number;
+}
+
+export async function listDatasets(token?: string | null) {
+  return apiFetch<DatasetListResponse>("/api/v1/datasets", token);
+}
+
+export async function uploadDataset(file: File, token?: string | null) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch<DatasetRead>("/api/v1/datasets", token, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function getDataset(datasetId: string, token?: string | null) {
+  return apiFetch<DatasetRead>(`/api/v1/datasets/${datasetId}`, token);
+}
+
+export async function profileDataset(datasetId: string, token?: string | null) {
+  return apiFetch<DatasetRead>(`/api/v1/datasets/${datasetId}/profile`, token, {
+    method: "POST",
+  });
+}
+
+export async function previewDataset(datasetId: string, token?: string | null, limit = 20) {
+  return apiFetch<TablePreviewResponse>(
+    `/api/v1/datasets/${datasetId}/preview?limit=${limit}`,
+    token
+  );
+}
+
+export async function deleteDataset(datasetId: string, token?: string | null) {
+  return apiFetch<void>(`/api/v1/datasets/${datasetId}`, token, {
+    method: "DELETE",
+  });
+}
+
+// --- Simulation ---
+
+export interface SimulationRequest {
+  question: string;
+  parameters: Record<string, string | number | boolean>;
+}
+
+// --- Specialists ---
+
+export async function invokeSpecialist(
+  specialistId: string,
+  skill: string,
+  params: Record<string, unknown>,
+  token?: string | null
+) {
+  return apiFetch<{ specialist_id: string; skill: string; result: unknown }>(
+    `/api/v1/specialists/${specialistId}/invoke`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({ skill, params }),
+    }
+  );
+}
+
+// --- Evaluation Benchmarks ---
+
+export interface BenchmarkResult {
+  benchmark_id: string;
+  total_cases: number;
+  passed: number;
+  failed: number;
+  accuracy: number;
+  total_time_ms: number;
+  cases: Record<string, unknown>[];
+}
+
+export async function runNLQBenchmark(token?: string | null) {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlq/run", token, {
+    method: "POST",
+  });
+}
+
+export async function runEDABenchmark(token?: string | null) {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/eda/run", token, {
+    method: "POST",
+  });
+}
+
+export async function runNLPBenchmark(token?: string | null) {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlp/run", token, {
+    method: "POST",
+  });
+}
