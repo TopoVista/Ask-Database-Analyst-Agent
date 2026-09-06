@@ -50,7 +50,12 @@ export default function SimulationPage() {
       const response = await fetch(`${API_URL}/api/v1/simulate/what-if`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ question, parameters, connection_id: activeConnectionId }),
+        body: JSON.stringify({
+          question,
+          parameters,
+          connection_id: activeConnectionId,
+          session_id: null,
+        }),
       });
       if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
       await consumeEventStream(response, (event) => setEvents((prev) => [...prev, event]));

@@ -209,5 +209,7 @@ def read_table(db_path: Path, table: str, limit: int | None = None) -> list[dict
 def table_summary(columns: list[str], rows: list[dict], limit: int = 5) -> dict[str, Any]:
     return {
         "columns": columns,
-        "rows_preview": rows[:limit],
+        "rows": rows[:limit],
+        "total_rows": len(rows),
+        "preview_limit": limit,
     }
