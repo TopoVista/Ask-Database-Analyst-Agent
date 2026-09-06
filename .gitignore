@@ -24,3 +24,11 @@ coverage.xml
 backend/.env
 frontend/.env.local
 backend/alembic/versions/__pycache__/
+
+# Windows reserved device names that occasionally get created as ghost files
+nul
+con
+aux
+prn
+backend/nul
+backend/data/
