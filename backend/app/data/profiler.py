@@ -1,16 +1,14 @@
-"""Staged dataset profiling.
+"""Staged dataset profiling — pure Python, no pandas/numpy.
 
 Fast profile always runs at ingestion (cheap stats + semantic types).
-Deep profile (correlations, outliers, duplicates, candidate keys) runs on
-demand and is persisted back to the descriptor.
+Deep profile (correlations, outliers, duplicates) runs on demand.
 """
 
 from __future__ import annotations
 
+import math
+import statistics
 from typing import Any
-
-import numpy as np
-import pandas as pd
 
 from app.data.descriptor import ColumnProfile, DatasetDescriptor
 from app.data.profiler_deep import (
@@ -22,37 +20,61 @@ from app.data.profiler_deep import (
 from app.data.semantic import infer_semantic_type
 
 
-def _sample_values(series: pd.Series, n: int = 50) -> list[Any]:
-    vals = series.dropna().head(n).tolist()
+def _coerce_float(v: Any) -> float | None:
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sample_values(col: str, rows: list[dict], n: int = 50) -> list[Any]:
     out: list[Any] = []
-    for v in vals:
-        if isinstance(v, pd.Timestamp):
-            out.append(v.isoformat())
-        elif isinstance(v, np.integer):
-            out.append(int(v))
-        elif isinstance(v, np.floating):
-            out.append(float(v))
-        else:
-            out.append(v if isinstance(v, (str, int, float, bool)) else str(v))
+    for row in rows:
+        v = row.get(col)
+        if v is None or v == "":
+            continue
+        out.append(v if isinstance(v, (str, int, float, bool)) else str(v))
+        if len(out) >= n:
+            break
     return out
 
 
-def fast_profile(df: pd.DataFrame, descriptor_id: str, name: str, source: str, table_name: str) -> DatasetDescriptor:
-    columns: list[ColumnProfile] = []
-    total = len(df)
-    for col in df.columns:
-        series = df[col]
-        dtype = str(series.dtype)
-        semantic = infer_semantic_type(str(col), dtype, _sample_values(series))
-        missing = int(series.isna().sum())
-        columns.append(
+def fast_profile(
+    columns: list[str],
+    rows: list[dict],
+    *,
+    descriptor_id: str,
+    name: str,
+    source: str,
+    table_name: str,
+) -> DatasetDescriptor:
+    total = len(rows)
+    col_profiles: list[ColumnProfile] = []
+
+    for col in columns:
+        vals = [row.get(col) for row in rows]
+        missing = sum(1 for v in vals if v is None or v == "")
+        non_null = [v for v in vals if v is not None and v != ""]
+        unique_count = len(set(str(v) for v in non_null))
+
+        # Infer dtype
+        numeric_vals = [_coerce_float(v) for v in non_null]
+        all_numeric = all(v is not None for v in numeric_vals) and bool(numeric_vals)
+        dtype = "float64" if all_numeric else "object"
+
+        sample = _sample_values(col, rows)
+        semantic = infer_semantic_type(col, dtype, sample)
+
+        col_profiles.append(
             ColumnProfile(
-                name=str(col),
+                name=col,
                 dtype=dtype,
                 semantic_type=semantic,
                 missing_count=missing,
                 missing_pct=round(missing / total * 100, 2) if total else 0.0,
-                unique_count=int(series.nunique(dropna=True)),
+                unique_count=unique_count,
             )
         )
 
@@ -62,11 +84,11 @@ def fast_profile(df: pd.DataFrame, descriptor_id: str, name: str, source: str, t
         source=source,
         table_name=table_name,
         row_count=total,
-        column_count=len(df.columns),
-        columns=columns,
+        column_count=len(columns),
+        columns=col_profiles,
     )
     _assign_column_groups(descriptor)
-    _basic_statistics(df, descriptor)
-    _quality_checks(df, descriptor)
+    _basic_statistics(columns, rows, descriptor)
+    _quality_checks(columns, rows, descriptor)
     _infer_dataset_type(descriptor)
     return descriptor
