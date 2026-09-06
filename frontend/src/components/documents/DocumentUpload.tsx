@@ -59,12 +59,8 @@ export function DocumentUpload() {
     setUploadResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const result = await apiFetch<{ status: string; num_chunks: number }>("/api/v1/documents/upload", undefined, {
-        method: "POST",
-        body: formData,
-      });
+      const token = await getToken();
+      const result = await uploadDocument(file, token);
       setUploadResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -79,10 +75,8 @@ export function DocumentUpload() {
     setError(null);
 
     try {
-      const result = await apiFetch<{ results: SearchResult[] }>("/api/v1/documents/search", undefined, {
-        method: "POST",
-        params: { query, limit: 5 },
-      });
+      const token = await getToken();
+      const result = await searchDocuments(query, token, 5);
       setSearchResults(result.results);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
