@@ -66,8 +66,9 @@ class DatasetService:
     async def run_deep_profile(self, dataset: Dataset) -> Dataset:
         """Run the deep profiler on an ingested dataset and persist the result."""
         descriptor = self._descriptor(dataset)
-        df = read_table(Path(dataset.file_path), descriptor.table_name or "data")
-        updated = deep_profile(df, descriptor)
+        rows = read_table(Path(dataset.file_path), descriptor.table_name or "data")
+        columns = [c.name for c in descriptor.columns]
+        updated = deep_profile(columns, rows, descriptor)
         dataset.row_count = updated.row_count
         dataset.column_count = updated.column_count
         dataset.descriptor_json = json.dumps(updated.to_dict())
@@ -77,8 +78,9 @@ class DatasetService:
 
     def preview_table(self, dataset: Dataset, limit: int = 20) -> dict[str, Any]:
         descriptor = self._descriptor(dataset)
-        df = read_table(Path(dataset.file_path), descriptor.table_name or "data", limit=limit)
-        summary = table_summary(df, limit=limit)
+        rows = read_table(Path(dataset.file_path), descriptor.table_name or "data", limit=limit)
+        columns = list(rows[0].keys()) if rows else [c.name for c in descriptor.columns]
+        summary = table_summary(columns, rows, limit=limit)
         summary["dataset_id"] = dataset.id
         summary["table_name"] = descriptor.table_name or "data"
         return summary
