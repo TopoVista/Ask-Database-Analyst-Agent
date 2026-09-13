@@ -9,7 +9,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("AUTH_BYPASS", "false")
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.config import get_settings
 from app.main import app
@@ -33,6 +33,8 @@ async def client(monkeypatch):
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    async with AsyncClient(app=app, base_url="http://test") as c:
+    # ``app=`` was removed in httpx 0.28. Use the explicit transport so the
+    # test suite works with both the pinned dependency and newer environments.
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     get_settings.cache_clear()

@@ -38,8 +38,38 @@ services:
       - key: MAX_QUERY_ROWS
         value: "500"
 
+      # Conservative concurrency and payload caps for the 512 MB free tier.
+      # Simulation and evaluation are deterministic; these bounds protect the
+      # remaining query/specialist paths from concurrent memory spikes.
+      - key: MAX_CONCURRENT_AGENT_RUNS
+        value: "1"
+
+      - key: MAX_CONCURRENT_DB_QUERIES
+        value: "1"
+
       - key: AGENT_MAX_ITERATIONS
         value: "3"
+
+      - key: AGENT_TIMEOUT_SECONDS
+        value: "60"
+
+      - key: QUERY_TIMEOUT_SECONDS
+        value: "20"
+
+      - key: SCHEMA_MAX_TABLES
+        value: "50"
+
+      - key: SCHEMA_TIMEOUT_SECONDS
+        value: "15"
+
+      - key: MAX_QUERY_RESULT_BYTES
+        value: "1048576"
+
+      - key: MAX_SPECIALIST_ROWS
+        value: "250"
+
+      - key: MAX_SPECIALIST_COLUMNS
+        value: "5"
 
       - key: LOG_LEVEL
         value: warning       # reduce noise / memory overhead in prod

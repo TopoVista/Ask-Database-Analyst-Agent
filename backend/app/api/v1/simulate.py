@@ -10,7 +10,6 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.simulation import SimulationRequest
 from app.services.connection_service import ConnectionService
-from app.services.llm_service import LLMService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/simulate", tags=["simulation"])
@@ -28,7 +27,7 @@ async def run_simulation(
     if not connection_string:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    sim_agent = SimulationAgent(LLMService())
+    sim_agent = SimulationAgent()
 
     async def stream():
         async for event in sim_agent.run(
@@ -39,4 +38,3 @@ async def run_simulation(
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
-

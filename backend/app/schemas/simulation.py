@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SimulationParameters(BaseModel):
+    # Keep scenario-specific values (for example `price_change_pct`) instead
+    # of silently discarding them during request validation.
+    model_config = ConfigDict(extra="allow")
     variable: str | None = None
     change_type: str | None = None
     change_value: float | int | None = None

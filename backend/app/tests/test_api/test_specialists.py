@@ -19,6 +19,14 @@ async def test_list_specialists(client):
     assert isinstance(data["specialists"], list)
     assert data["count"] > 0
 
+    # The Next.js catch-all proxy normalizes a trailing slash away.  Supporting
+    # both forms prevents its redirect loop from turning this into an empty UI.
+    no_slash_response = await client.get("/api/v1/specialists")
+    assert no_slash_response.status_code == 200
+    direct = next(item for item in data["specialists"] if item["id"] == "nlp_text_analyst")
+    assert direct["direct_invocation"] is True
+    assert "sentiment" in direct["skills"]
+
 
 @pytest.mark.asyncio
 async def test_get_specialist(client):
@@ -48,3 +56,12 @@ async def test_invoke_only_registered_specialist_skill(client):
         json={"skill": "register", "params": {}},
     )
     assert blocked.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_direct_specialist_input_is_bounded(client):
+    response = await client.post(
+        "/api/v1/specialists/anomaly_advanced/invoke",
+        json={"skill": "detect_anomalies", "params": {"data": [{"value": 1}] * 501, "columns": ["value"]}},
+    )
+    assert response.status_code == 422

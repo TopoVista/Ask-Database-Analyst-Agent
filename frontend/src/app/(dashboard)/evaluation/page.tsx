@@ -104,6 +104,11 @@ function BenchmarkCard({ title, description, result, isRunning, onRun }: {
               <span className="text-sm text-muted-fg">Time</span>
               <span className="text-xs text-fg/70">{result.total_time_ms}ms</span>
             </div>
+            {result.mode === "deterministic_contract" && (
+              <p className="text-xs leading-5 text-muted-fg">
+                Offline contract check: validates benchmark fixtures and scoring without a model or network call.
+              </p>
+            )}
           </div>
         )}
       </CardContent>

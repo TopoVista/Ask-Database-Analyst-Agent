@@ -10,6 +10,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from app.dependencies import get_current_user, get_db
+from app.config import get_settings
 from app.schemas.auth import AuthenticatedUser
 from app.services.user_service import ensure_user
 
@@ -30,6 +31,41 @@ def _registered_skills(instance: Any) -> dict[str, Any]:
     }
 
 
+def _specialist_payload(spec: Any, cls: type | None) -> dict[str, Any]:
+    """Expose callable skill names, not the broader capability labels."""
+    skills = sorted(_registered_skills(cls())) if cls is not None else []
+    return {
+        "id": spec.id,
+        "name": spec.name,
+        "description": spec.description,
+        "capabilities": spec.capabilities,
+        "supported_data_types": spec.supported_data_types,
+        "tools": spec.tools,
+        "available": spec.available,
+        "direct_invocation": cls is not None,
+        "skills": skills,
+    }
+
+
+def _enforce_direct_input_limits(params: dict[str, Any]) -> None:
+    """Keep in-process pure-Python specialists bounded on small instances."""
+    settings = get_settings()
+    for key in ("data", "rows", "values"):
+        value = params.get(key)
+        if isinstance(value, list) and len(value) > settings.max_specialist_rows:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'{key}' is limited to {settings.max_specialist_rows} items for direct specialist runs.",
+            )
+    columns = params.get("columns")
+    if isinstance(columns, list) and len(columns) > settings.max_specialist_columns:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'columns' is limited to {settings.max_specialist_columns} items for direct specialist runs.",
+        )
+
+
+@router.get("")
 @router.get("/")
 async def list_specialists(
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -43,16 +79,7 @@ async def list_specialists(
     specialists = specialist_registry.list(available_only=False)
     return {
         "specialists": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "description": s.description,
-                "capabilities": s.capabilities,
-                "supported_data_types": s.supported_data_types,
-                "tools": s.tools,
-                "available": s.available,
-                "direct_invocation": get_specialist_class(s.id) is not None,
-            }
+            _specialist_payload(s, get_specialist_class(s.id))
             for s in specialists
         ],
         "count": len(specialists),
@@ -74,16 +101,7 @@ async def get_specialist(
     if spec is None:
         raise HTTPException(status_code=404, detail=f"Specialist '{specialist_id}' not found")
 
-    return {
-        "id": spec.id,
-        "name": spec.name,
-        "description": spec.description,
-        "capabilities": spec.capabilities,
-        "supported_data_types": spec.supported_data_types,
-        "tools": spec.tools,
-        "available": spec.available,
-        "direct_invocation": get_specialist_class(spec.id) is not None,
-    }
+    return _specialist_payload(spec, get_specialist_class(spec.id))
 
 
 @router.post("/{specialist_id}/invoke")
@@ -125,6 +143,8 @@ async def invoke_specialist(
             status_code=501,
             detail=f"Specialist '{specialist_id}' has no invokable implementation (pipeline-only).",
         )
+
+    _enforce_direct_input_limits(body.params)
 
     # Only explicitly decorated skills are public. Never allow a client to
     # call an arbitrary public method (for example register or helper methods).

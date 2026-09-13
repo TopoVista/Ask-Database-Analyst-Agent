@@ -22,7 +22,7 @@ export default function SpecialistsPage() {
     queryKey: ["specialists"],
     queryFn: async () => listSpecialists(await getToken()),
     enabled: isLoaded && Boolean(userId),
-    retry: false,
+    retry: 1,
   });
 
   const specialists = specialistsQuery.data?.specialists ?? [];
@@ -76,6 +76,7 @@ export default function SpecialistsPage() {
         <SpecialistList
           specialists={specialists}
           isLoading={specialistsQuery.isLoading}
+          error={specialistsQuery.error instanceof Error ? specialistsQuery.error.message : null}
           selectedId={selectedId}
           onSelect={(id) => { setSelectedId(id); setInvokeResult(null); setError(null); }}
         />
@@ -105,8 +106,8 @@ function SpecMetric({ label, value, icon: Icon }: { label: string; value: string
   );
 }
 
-function SpecialistList({ specialists, isLoading, selectedId, onSelect }: {
-  specialists: SpecialistInfo[]; isLoading: boolean; selectedId: string | null; onSelect: (id: string) => void;
+function SpecialistList({ specialists, isLoading, error, selectedId, onSelect }: {
+  specialists: SpecialistInfo[]; isLoading: boolean; error: string | null; selectedId: string | null; onSelect: (id: string) => void;
 }) {
   return (
     <Card>
@@ -114,6 +115,10 @@ function SpecialistList({ specialists, isLoading, selectedId, onSelect }: {
       <CardContent className="space-y-3">
         {isLoading ? (
           <p className="text-sm text-muted-fg">Loading...</p>
+        ) : error ? (
+          <div className="rounded-[20px] border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-400">
+            Could not load specialists: {error}
+          </div>
         ) : specialists.length ? (
           specialists.map((spec) => (
             <button key={spec.id} onClick={() => onSelect(spec.id)}
@@ -154,14 +159,22 @@ function SpecialistDetail({ selected, skillParams, onParamsChange, onInvoke, inv
             </div>
             <div className="space-y-3">
               <p className="text-[10px] uppercase tracking-[0.2em] text-muted-fg">Invoke a skill</p>
-              <Input value={skillParams} onChange={(e) => onParamsChange(e.target.value)} placeholder='{"text": "sample"}' className="font-mono text-xs" />
-              <div className="flex flex-wrap gap-2">
-                {selected.capabilities.map((cap) => (
-                  <Button key={cap} variant="outline" size="sm" onClick={() => onInvoke(cap)} disabled={invoking || !selected.available}>
-                    {invoking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}{cap}
-                  </Button>
-                ))}
-              </div>
+              {selected.direct_invocation && selected.skills?.length ? (
+                <>
+                  <Input value={skillParams} onChange={(e) => onParamsChange(e.target.value)} placeholder='{"text": "sample"}' className="font-mono text-xs" />
+                  <div className="flex flex-wrap gap-2">
+                    {selected.skills.map((skill) => (
+                      <Button key={skill} variant="outline" size="sm" onClick={() => onInvoke(skill)} disabled={invoking || !selected.available}>
+                        {invoking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}{skill}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-muted-fg">
+                  This specialist runs automatically as part of the analysis workflow and is not exposed as a standalone action.
+                </p>
+              )}
             </div>
             {error && <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
             {result !== null && (

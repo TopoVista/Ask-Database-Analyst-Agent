@@ -146,10 +146,12 @@ export interface SpecialistInfo {
   supported_data_types: string[];
   tools: string[];
   available: boolean;
+  direct_invocation: boolean;
+  skills: string[];
 }
 
 export async function listSpecialists(token?: string | null) {
-  return apiFetch<{ specialists: SpecialistInfo[]; count: number }>("/api/v1/specialists/", token);
+  return apiFetch<{ specialists: SpecialistInfo[]; count: number }>("/api/v1/specialists", token);
 }
 
 // --- Evaluation ---
@@ -264,6 +266,7 @@ export async function invokeSpecialist(
 
 export interface BenchmarkResult {
   benchmark_id: string;
+  mode?: string;
   total_cases: number;
   passed: number;
   failed: number;
@@ -273,19 +276,19 @@ export interface BenchmarkResult {
 }
 
 export async function runNLQBenchmark(token?: string | null) {
-  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlq/run", token, {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlq_to_sql/run", token, {
     method: "POST",
   });
 }
 
 export async function runEDABenchmark(token?: string | null) {
-  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/eda/run", token, {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/eda_correctness/run", token, {
     method: "POST",
   });
 }
 
 export async function runNLPBenchmark(token?: string | null) {
-  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlp/run", token, {
+  return apiFetch<BenchmarkResult>("/api/v1/evaluation/benchmarks/nlp_sentiment/run", token, {
     method: "POST",
   });
 }
