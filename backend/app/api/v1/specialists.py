@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.dependencies import get_current_user, get_db
 from app.config import get_settings
 from app.schemas.auth import AuthenticatedUser
+from app.services.worker_client import SpecialistWorkerClient, WorkerUnavailableError, specialist_worker_url
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/specialists", tags=["specialists"])
@@ -145,6 +146,17 @@ async def invoke_specialist(
         )
 
     _enforce_direct_input_limits(body.params)
+
+    # A configured worker owns this specialist's memory budget. Do not fall
+    # back to main-process execution if that worker is unavailable: doing so
+    # would defeat the 512 MB isolation guarantee.
+    worker_url = specialist_worker_url(specialist_id)
+    if worker_url:
+        try:
+            result = await SpecialistWorkerClient(worker_url).invoke(specialist_id, body.skill, body.params)
+        except WorkerUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {"specialist_id": specialist_id, "skill": body.skill, "result": result, "execution": "remote_worker"}
 
     # Only explicitly decorated skills are public. Never allow a client to
     # call an arbitrary public method (for example register or helper methods).

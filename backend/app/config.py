@@ -70,6 +70,17 @@ class Settings(BaseSettings):
     # Uploads are temporary working files, never application persistence.
     uploads_dir: str = "/tmp/ask-database-uploads"
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)
+    # Optional private worker services. URLs are deliberately empty by default
+    # so local development and the single-service deployment keep working.
+    rag_worker_url: str = ""
+    specialist_worker_urls: str = ""
+    worker_shared_token: str = ""
+    worker_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    worker_max_request_bytes: int = Field(default=4 * 1024 * 1024, ge=64 * 1024, le=10 * 1024 * 1024)
+    # RAG persistence: in_memory is for local use only. database persists
+    # document chunks in the managed Postgres database without a Chroma server.
+    rag_store_backend: str = "in_memory"
+    rag_search_candidate_limit: int = Field(default=500, ge=25, le=2_000)
     # Chroma vector store for RAG (optional). Leave chroma_host empty to use
     # the in-process fallback store.
     chroma_host: str = ""

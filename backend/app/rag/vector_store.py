@@ -7,8 +7,13 @@ Supports Chroma (when available) with an in-process fallback for local developme
 from __future__ import annotations
 
 import math
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
 
 @dataclass
@@ -119,6 +124,138 @@ class InMemoryVectorStore(VectorStore):
 
     def count(self) -> int:
         return len(self._items)
+
+
+class DatabaseVectorStore(VectorStore):
+    """Managed-Postgres/SQLite RAG store with bounded in-process ranking.
+
+    Embeddings remain in the database. A worker loads at most the configured
+    candidate limit for a scoped user search, which keeps its peak memory below
+    the unrestricted in-memory-store behaviour while surviving Render restarts.
+    """
+
+    def __init__(self, database_url: str, candidate_limit: int = 500) -> None:
+        self.database_url = database_url
+        self.candidate_limit = candidate_limit
+        self._engine = create_async_engine(database_url, future=True, poolclass=NullPool)
+        self._initialized = False
+
+    async def _ensure_table(self) -> None:
+        if self._initialized:
+            return
+        async with self._engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS rag_document_chunks ("
+                    "id VARCHAR(64) PRIMARY KEY, user_id VARCHAR(128) NOT NULL, "
+                    "source VARCHAR(512) NOT NULL, chunk_index INTEGER NOT NULL, "
+                    "chunk_text TEXT NOT NULL, embedding_json TEXT NOT NULL, "
+                    "metadata_json TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+                )
+            )
+            await connection.execute(
+                text("CREATE INDEX IF NOT EXISTS idx_rag_document_chunks_user_source ON rag_document_chunks (user_id, source)")
+            )
+        self._initialized = True
+
+    @staticmethod
+    def _cosine_similarity(a: list[float], b: list[float]) -> float:
+        if not a or not b:
+            return 0.0
+        length = min(len(a), len(b))
+        dot = sum(a[i] * b[i] for i in range(length))
+        norm_a = math.sqrt(sum(v * v for v in a[:length]))
+        norm_b = math.sqrt(sum(v * v for v in b[:length]))
+        return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+
+    async def add_chunks(self, chunks: list[StoredChunk]) -> None:
+        if not chunks:
+            return
+        await self._ensure_table()
+        rows = [
+            {
+                "id": chunk.id,
+                "user_id": chunk.user_id or "",
+                "source": chunk.source,
+                "chunk_index": chunk.chunk_index,
+                "chunk_text": chunk.text,
+                "embedding_json": json.dumps(chunk.embedding, separators=(",", ":")),
+                "metadata_json": json.dumps(chunk.metadata, separators=(",", ":")),
+            }
+            for chunk in chunks
+        ]
+        statement = text(
+            "INSERT INTO rag_document_chunks "
+            "(id, user_id, source, chunk_index, chunk_text, embedding_json, metadata_json) "
+            "VALUES (:id, :user_id, :source, :chunk_index, :chunk_text, :embedding_json, :metadata_json)"
+        )
+        async with self._engine.begin() as connection:
+            await connection.execute(statement, rows)
+
+    async def search(
+        self,
+        query_embedding: list[float],
+        *,
+        limit: int = 5,
+        user_id: str | None = None,
+        source: str | None = None,
+    ) -> list[tuple[StoredChunk, float]]:
+        await self._ensure_table()
+        if user_id is None:
+            return []
+        sql = (
+            "SELECT id, user_id, source, chunk_index, chunk_text, embedding_json, metadata_json "
+            "FROM rag_document_chunks WHERE user_id = :user_id"
+        )
+        params: dict[str, Any] = {"user_id": user_id, "candidate_limit": self.candidate_limit}
+        if source is not None:
+            sql += " AND source = :source"
+            params["source"] = source
+        sql += " ORDER BY created_at DESC LIMIT :candidate_limit"
+        async with self._engine.connect() as connection:
+            result = await connection.execute(text(sql), params)
+            rows = result.mappings().all()
+        ranked: list[tuple[StoredChunk, float]] = []
+        for row in rows:
+            embedding = json.loads(row["embedding_json"])
+            score = self._cosine_similarity(query_embedding, embedding)
+            if score > 0:
+                ranked.append(
+                    (
+                        StoredChunk(
+                            id=row["id"], text=row["chunk_text"], source=row["source"],
+                            chunk_index=row["chunk_index"], embedding=[],
+                            metadata=json.loads(row["metadata_json"]), user_id=row["user_id"],
+                        ),
+                        round(score, 4),
+                    )
+                )
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        return ranked[:limit]
+
+    async def delete_by_user(self, user_id: str) -> int:
+        await self._ensure_table()
+        async with self._engine.begin() as connection:
+            result = await connection.execute(text("DELETE FROM rag_document_chunks WHERE user_id = :user_id"), {"user_id": user_id})
+        return int(result.rowcount or 0)
+
+    async def delete_by_source(self, source: str, *, user_id: str | None = None) -> int:
+        await self._ensure_table()
+        sql = "DELETE FROM rag_document_chunks WHERE source = :source"
+        params: dict[str, Any] = {"source": source}
+        if user_id is not None:
+            sql += " AND user_id = :user_id"
+            params["user_id"] = user_id
+        async with self._engine.begin() as connection:
+            result = await connection.execute(text(sql), params)
+        return int(result.rowcount or 0)
+
+    def count(self) -> int:
+        # The caller only uses count to cap the volatile in-memory fallback.
+        return 0
+
+    async def aclose(self) -> None:
+        await self._engine.dispose()
 
 
 class ChromaVectorStore(VectorStore):
@@ -255,6 +392,8 @@ def get_vector_store() -> VectorStore:
     from app.config import get_settings
 
     settings = get_settings()
+    if settings.rag_store_backend.lower() == "database":
+        return DatabaseVectorStore(settings.database_url, settings.rag_search_candidate_limit)
     chroma_host = getattr(settings, "chroma_host", "")
     if chroma_host:
         port = getattr(settings, "chroma_port", 8000)

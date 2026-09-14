@@ -66,6 +66,23 @@ class TestPredict:
         predictions = await specialist.predict([{"x": 10}, {"x": 11}])
         assert isinstance(predictions, list)
 
+    @pytest.mark.asyncio
+    async def test_multifeature_model_artifact_predicts_across_instances(self):
+        trained = await MLSpecialist().train_model(
+            [
+                {"x1": 1, "x2": 1, "target": 5},
+                {"x1": 2, "x2": 1, "target": 7},
+                {"x1": 1, "x2": 2, "target": 8},
+                {"x1": 2, "x2": 2, "target": 10},
+            ],
+            target="target",
+            features=["x1", "x2"],
+        )
+        assert "model" in trained
+        # Worker requests are stateless, so callers can reuse this artifact.
+        predicted = await MLSpecialist().predict([{"x1": 3, "x2": 1}], model=trained["model"])
+        assert predicted[0]["prediction"] == pytest.approx(9.0, abs=0.01)
+
 
 class TestRegister:
     def test_register_returns_specialist(self):

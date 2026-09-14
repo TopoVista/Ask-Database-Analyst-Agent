@@ -26,6 +26,18 @@ services:
       - key: ENCRYPTION_KEY
         sync: false          # Fernet key used to encrypt user database credentials
 
+      # Optional private 512 MB workers. Deploy the services in
+      # render.workers.yaml, use the private URLs here, and set the same
+      # WORKER_SHARED_TOKEN on every service.
+      - key: RAG_WORKER_URL
+        sync: false
+
+      - key: SPECIALIST_WORKER_URLS
+        sync: false
+
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+
       - key: CLERK_ISSUER
         sync: false          # e.g. https://<instance>.clerk.accounts.dev
 

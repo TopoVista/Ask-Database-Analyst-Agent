@@ -50,6 +50,69 @@ def _linear_regression_fit(x: list[float], y: list[float]) -> dict[str, Any]:
     }
 
 
+def _solve_linear_system(matrix: list[list[float]], target: list[float]) -> list[float] | None:
+    """Solve a small dense system with Gauss-Jordan elimination.
+
+    Worker input caps keep this intentionally small (at most five features),
+    avoiding NumPy/scikit-learn memory overhead on a 512 MB service.
+    """
+    size = len(target)
+    augmented = [matrix[i][:] + [target[i]] for i in range(size)]
+    for pivot in range(size):
+        best = max(range(pivot, size), key=lambda row: abs(augmented[row][pivot]))
+        if abs(augmented[best][pivot]) < 1e-12:
+            return None
+        augmented[pivot], augmented[best] = augmented[best], augmented[pivot]
+        divisor = augmented[pivot][pivot]
+        augmented[pivot] = [value / divisor for value in augmented[pivot]]
+        for row in range(size):
+            if row == pivot:
+                continue
+            factor = augmented[row][pivot]
+            augmented[row] = [value - factor * base for value, base in zip(augmented[row], augmented[pivot])]
+    return [augmented[row][-1] for row in range(size)]
+
+
+def _multivariate_regression_fit(data: list[dict], target: str, features: list[str]) -> dict[str, Any]:
+    rows: list[tuple[list[float], float]] = []
+    for row in data:
+        try:
+            rows.append(([float(row[feature]) for feature in features], float(row[target])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if len(rows) < max(3, len(features) + 1):
+        return {"error": "insufficient_valid_rows"}
+
+    # X includes an intercept. A small ridge term makes correlated features
+    # numerically stable without a heavyweight numerical dependency.
+    width = len(features) + 1
+    gram = [[0.0 for _ in range(width)] for _ in range(width)]
+    cross = [0.0 for _ in range(width)]
+    for values, outcome in rows:
+        vector = [1.0, *values]
+        for i in range(width):
+            cross[i] += vector[i] * outcome
+            for j in range(width):
+                gram[i][j] += vector[i] * vector[j]
+    for i in range(1, width):
+        gram[i][i] += 1e-6
+    coefficients = _solve_linear_system(gram, cross)
+    if coefficients is None:
+        return {"error": "singular_feature_matrix"}
+    actual = [outcome for _, outcome in rows]
+    predicted = [coefficients[0] + sum(weight * value for weight, value in zip(coefficients[1:], values)) for values, _ in rows]
+    mean_y = _mean(actual)
+    ss_res = sum((observed - estimate) ** 2 for observed, estimate in zip(actual, predicted))
+    ss_tot = sum((observed - mean_y) ** 2 for observed in actual)
+    return {
+        "intercept": round(coefficients[0], 6),
+        "coefficients": {feature: round(weight, 6) for feature, weight in zip(features, coefficients[1:])},
+        "r_squared": round(max(0.0, 1 - ss_res / ss_tot) if ss_tot else 0.0, 4),
+        "n_samples": len(rows),
+        "method": "ridge_linear_regression",
+    }
+
+
 class MLSpecialist:
     """ML Specialist for model training and evaluation."""
 
@@ -82,65 +145,46 @@ class MLSpecialist:
         if not y or len(y) < 2:
             return {"error": "target column not found or insufficient", "model_type": task}
 
-        if len(features) == 1:
-            x = _extract_column(data, features[0])
-            result = _linear_regression_fit(x, y)
-            result["model_type"] = task
-            result["target"] = target
-            result["features"] = features
-            if "error" not in result:
-                self._model = {
-                    "slope": result.get("slope"),
-                    "intercept": result.get("intercept"),
-                    "target": target,
-                    "features": features,
-                    "task": task,
-                }
-                # Feature importance for single feature
-                result["feature_importance"] = {features[0]: round(abs(result.get("slope", 0)), 4)}
-            return result
-        else:
-            # Multi-feature: report per-feature correlation as importance
-            importance = {}
-            for feat in features:
-                feat_vals = _extract_column(data, feat)
-                if feat_vals and y:
-                    n = min(len(feat_vals), len(y))
-                    mx = _mean(feat_vals[:n])
-                    my = _mean(y[:n])
-                    num = sum((feat_vals[i] - mx) * (y[i] - my) for i in range(n))
-                    dx = math.sqrt(sum((v - mx) ** 2 for v in feat_vals[:n]))
-                    dy = math.sqrt(sum((v - my) ** 2 for v in y[:n]))
-                    corr = num / (dx * dy) if dx > 0 and dy > 0 else 0.0
-                    importance[feat] = round(abs(corr), 4)
-            return {
-                "error": "multi_feature_regression_not_supported",
-                "message": "This lightweight specialist can train only one-feature linear regression; no prediction model was created.",
-                "model_type": task,
+        if not features or len(features) > 5:
+            return {"error": "features_must_contain_between_1_and_5_columns"}
+        result = _multivariate_regression_fit(data, target, features)
+        result.update({"model_type": task, "target": target, "features": features})
+        if "error" not in result:
+            model = {
+                "intercept": result["intercept"],
+                "coefficients": result["coefficients"],
                 "target": target,
                 "features": features,
-                "feature_association": importance,
-                "n_samples": len(data),
+                "task": task,
+                "method": result["method"],
             }
+            self._model = model
+            result["model"] = model  # portable: works across stateless workers
+            result["feature_importance"] = {
+                feature: round(abs(weight), 6) for feature, weight in result["coefficients"].items()
+            }
+        return result
 
     @skill("predict")
-    async def predict(self, data: list[dict]) -> list[dict]:
+    async def predict(self, data: list[dict], model: dict[str, Any] | None = None) -> list[dict]:
         """Make predictions using the trained model."""
-        if self._model is None:
+        active_model = model or self._model
+        if active_model is None:
             return [{"error": "no model trained"}]
 
         predictions = []
-        slope = self._model.get("slope")
-        intercept = self._model.get("intercept")
-        features = self._model.get("features", [])
+        intercept = active_model.get("intercept")
+        coefficients = active_model.get("coefficients")
+        features = active_model.get("features", [])
 
         for row in data:
-            if slope is not None and intercept is not None and features:
-                x_val = float(row.get(features[0], 0))
-                pred = slope * x_val + intercept
+            try:
+                if not isinstance(coefficients, dict) or intercept is None or not features:
+                    raise ValueError("trained model has no prediction coefficients")
+                pred = float(intercept) + sum(float(coefficients[feature]) * float(row[feature]) for feature in features)
                 predictions.append({"prediction": round(pred, 4)})
-            else:
-                predictions.append({"error": "trained model has no prediction coefficients"})
+            except (KeyError, TypeError, ValueError):
+                predictions.append({"error": "row is missing a valid model feature"})
 
         return predictions
 

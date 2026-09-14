@@ -1,0 +1,129 @@
+# Optional Render Blueprint for isolated 512 MB specialist and RAG services.
+# Deploy this file separately after the main API. Give every service the same
+# secret WORKER_SHARED_TOKEN, then configure its private URL in the main API.
+version: "1"
+
+services:
+  - type: web
+    name: di-forecast-specialist
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: uvicorn app.workers.specialist_service:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: worker
+      - key: WORKER_SPECIALISTS
+        value: time_series_forecaster
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+      - key: MAX_SPECIALIST_ROWS
+        value: "250"
+      - key: MAX_SPECIALIST_COLUMNS
+        value: "5"
+      - key: PYTHONOPTIMIZE
+        value: "1"
+
+  - type: web
+    name: di-model-specialist
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: uvicorn app.workers.specialist_service:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: worker
+      - key: WORKER_SPECIALISTS
+        value: ml_scientist,causal_analyst
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+      - key: MAX_SPECIALIST_ROWS
+        value: "200"
+      - key: MAX_SPECIALIST_COLUMNS
+        value: "5"
+      - key: PYTHONOPTIMIZE
+        value: "1"
+
+  - type: web
+    name: di-anomaly-specialist
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: uvicorn app.workers.specialist_service:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: worker
+      - key: WORKER_SPECIALISTS
+        value: anomaly_advanced
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+      - key: MAX_SPECIALIST_ROWS
+        value: "250"
+      - key: MAX_SPECIALIST_COLUMNS
+        value: "5"
+      - key: PYTHONOPTIMIZE
+        value: "1"
+
+  - type: web
+    name: di-nlp-specialist
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: uvicorn app.workers.specialist_service:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: worker
+      - key: WORKER_SPECIALISTS
+        value: nlp_text_analyst
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+      - key: MAX_SPECIALIST_ROWS
+        value: "250"
+      - key: MAX_SPECIALIST_COLUMNS
+        value: "5"
+      - key: PYTHONOPTIMIZE
+        value: "1"
+
+  - type: web
+    name: di-rag-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: uvicorn app.workers.rag_service:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --loop uvloop
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: worker
+      - key: DATABASE_URL
+        sync: false
+      - key: WORKER_SHARED_TOKEN
+        sync: false
+      - key: RAG_STORE_BACKEND
+        value: database
+      - key: RAG_SEARCH_CANDIDATE_LIMIT
+        value: "500"
+      - key: MAX_DOCUMENT_CHUNKS
+        value: "100"
+      - key: WORKER_MAX_REQUEST_BYTES
+        value: "4194304"
+      - key: PYTHONOPTIMIZE
+        value: "1"

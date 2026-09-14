@@ -9,6 +9,7 @@ from app.dependencies import get_current_user, get_db
 from app.rag.retriever import RAGRetriever
 from app.rag.vector_store import get_default_store
 from app.schemas.auth import AuthenticatedUser
+from app.services.worker_client import RAGWorkerClient, WorkerUnavailableError
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -53,13 +54,21 @@ async def upload_document(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    # Ingest document
-    retriever = RAGRetriever(vector_store=get_default_store())
+    # When configured, RAG runs in a dedicated worker with its own 512 MB
+    # budget. The worker persists to managed Postgres and receives only this
+    # authenticated user's content.
+    settings = get_settings()
     try:
-        result = await retriever.ingest_document(content=content, source=filename, user_id=str(user.id))
+        if settings.rag_worker_url:
+            result = await RAGWorkerClient(settings.rag_worker_url).ingest(content, filename, str(user.id))
+        else:
+            retriever = RAGRetriever(vector_store=get_default_store())
+            result = await retriever.ingest_document(content=content, source=filename, user_id=str(user.id))
     except ValueError as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except MemoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkerUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return result
@@ -80,13 +89,15 @@ async def search_documents(
     """
     user = await ensure_user(db, current_user)
 
-    retriever = RAGRetriever(vector_store=get_default_store())
-    results = await retriever.retrieve(
-        query=query,
-        user_id=str(user.id),
-        limit=limit,
-        source=source,
-    )
+    settings = get_settings()
+    try:
+        if settings.rag_worker_url:
+            payload = await RAGWorkerClient(settings.rag_worker_url).search(query, str(user.id), limit, source)
+            return payload
+        retriever = RAGRetriever(vector_store=get_default_store())
+        results = await retriever.retrieve(query=query, user_id=str(user.id), limit=limit, source=source)
+    except WorkerUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {
         "query": query,
@@ -104,7 +115,13 @@ async def delete_document(
     """Delete a document and all its indexed chunks."""
     user = await ensure_user(db, current_user)
 
-    retriever = RAGRetriever(vector_store=get_default_store())
-    deleted = await retriever.delete_document(source, str(user.id))
+    settings = get_settings()
+    try:
+        if settings.rag_worker_url:
+            return await RAGWorkerClient(settings.rag_worker_url).delete(source, str(user.id))
+        retriever = RAGRetriever(vector_store=get_default_store())
+        deleted = await retriever.delete_document(source, str(user.id))
+    except WorkerUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {"source": source, "chunks_deleted": deleted}
