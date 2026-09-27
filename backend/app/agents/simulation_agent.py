@@ -32,9 +32,15 @@ def _factor_from_parameters(parameters: dict[str, Any]) -> float:
     return 1.0
 
 
-def _numeric_column(table_info: dict[str, Any]) -> str | None:
+def _numeric_column(table_info: dict[str, Any], requested: str = "") -> str | None:
     preferred = ("revenue", "sales", "profit", "amount", "price", "cost", "value", "quantity")
     columns = table_info.get("columns", [])
+    requested = requested.strip().lower()
+    if requested:
+        for column in columns:
+            name = str(column.get("name") or "")
+            if name.lower() == requested or requested in name.lower():
+                return name
     for token in preferred:
         for column in columns:
             name = str(column.get("name") or "")
@@ -53,7 +59,10 @@ def _deterministic_plan(schema: dict[str, Any], parameters: dict[str, Any]) -> d
         return {"simulation_plan": [], "assumptions": ["No readable tables were found in this connection."]}
     table_name, table_info = next(iter(tables.items()))
     table_sql = _quote_identifier(str(table_name))
-    metric = _numeric_column(table_info if isinstance(table_info, dict) else {})
+    metric = _numeric_column(
+        table_info if isinstance(table_info, dict) else {},
+        str(parameters.get("variable") or ""),
+    )
     factor = _factor_from_parameters(parameters)
     if metric:
         metric_sql = _quote_identifier(metric)

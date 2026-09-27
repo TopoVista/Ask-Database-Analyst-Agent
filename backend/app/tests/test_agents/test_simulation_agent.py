@@ -38,6 +38,26 @@ async def test_simulation_runs_without_an_llm_and_projects_parameterized_metric(
     assert events[-1]["type"] == "done"
 
 
+@pytest.mark.asyncio
+async def test_simulation_uses_requested_metric_from_form(tmp_path):
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'metric_choice.db'}"
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE TABLE sales (revenue NUMERIC, price NUMERIC)"))
+            await conn.execute(text("INSERT INTO sales (revenue, price) VALUES (100, 10), (50, 20)"))
+        events = [event async for event in SimulationAgent().run(
+            question="What if price increases?",
+            parameters={"variable": "price", "change_type": "percentage", "change_value": 10},
+            connection_string=database_url,
+        )]
+    finally:
+        await engine.dispose()
+
+    projected = next(event for event in events if event["type"] == "sim_result" and event["data"]["label"] == "projected")
+    assert float(projected["data"]["rows"][0]["baseline_metric"]) == 30.0
+
+
 def test_simulation_request_preserves_scenario_specific_parameters():
     request = SimulationRequest(
         question="What if prices rise?",

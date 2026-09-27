@@ -17,7 +17,9 @@ export default function SimulationPage() {
   const { getToken, isLoaded, userId } = useAuth();
   const { activeConnectionId } = useChatStore();
   const [question, setQuestion] = useState("What if we increase price by 10%?");
-  const [paramText, setParamText] = useState('{"price_change_pct": 10}');
+  const [variable, setVariable] = useState("price");
+  const [changeValue, setChangeValue] = useState("10");
+  const [direction, setDirection] = useState<"increase" | "decrease">("increase");
   const [streaming, setStreaming] = useState(false);
   const [events, setEvents] = useState<Array<{ type: string; data: unknown }>>([]);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +41,17 @@ export default function SimulationPage() {
     setEvents([]);
     try {
       const token = await getToken();
-      let parameters: Record<string, unknown> = {};
-      if (paramText.trim()) {
-        try { parameters = JSON.parse(paramText); } catch {
-          setError("Invalid JSON parameters");
-          setStreaming(false);
-          return;
-        }
+      const amount = Number(changeValue);
+      if (!Number.isFinite(amount) || amount < 0 || amount > 900) {
+        setError("Enter a percentage between 0 and 900.");
+        setStreaming(false);
+        return;
       }
+      const parameters = {
+        variable: variable.trim(),
+        change_type: "percentage",
+        change_value: direction === "decrease" ? -amount : amount,
+      };
       const response = await fetch(`${API_URL}/api/v1/simulate/what-if`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -67,7 +72,7 @@ export default function SimulationPage() {
   };
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1440px] space-y-8 px-4 py-7 md:px-6 lg:px-8">
       <Card>
         <CardHeader>
           <Badge className="w-fit border-accent/20 bg-accent/10 text-accent">What-If Simulation</Badge>
@@ -81,17 +86,19 @@ export default function SimulationPage() {
         <SimMetric label="Events" value={String(events.length)} icon={FlaskConical} />
       </div>
       <Card>
-        <CardHeader><CardTitle>Parameters</CardTitle><CardDescription>Define the scenario</CardDescription></CardHeader>
-        <CardContent className="space-y-4">
+        <CardHeader className="border-b border-white/10 pb-6"><CardTitle>Scenario details</CardTitle><CardDescription className="mt-2">Define the metric and change to model. The source database is never modified.</CardDescription></CardHeader>
+        <CardContent className="space-y-6 pt-6">
           <div className="space-y-2">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-muted-fg">Question</span>
-            <Input value={question} onChange={(e) => setQuestion(e.target.value)} />
+            <label htmlFor="simulation-question" className="text-xs font-medium text-fg">Scenario question</label>
+            <Input id="simulation-question" value={question} onChange={(e) => setQuestion(e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-muted-fg">Parameters (JSON)</span>
-            <Input value={paramText} onChange={(e) => setParamText(e.target.value)} className="font-mono text-xs" />
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2"><label htmlFor="simulation-variable" className="text-xs font-medium text-fg">Metric to change</label><Input id="simulation-variable" value={variable} onChange={(e) => setVariable(e.target.value)} placeholder="price, revenue, or profit" /><p className="text-xs text-muted-fg">Optional; use a column name when known.</p></div>
+            <div className="space-y-2"><label htmlFor="simulation-direction" className="text-xs font-medium text-fg">Direction</label><select id="simulation-direction" value={direction} onChange={(e) => setDirection(e.target.value as "increase" | "decrease")} className="h-11 w-full rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] px-4 text-sm text-fg outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/18"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
+            <div className="space-y-2"><label htmlFor="simulation-value" className="text-xs font-medium text-fg">Change (%)</label><Input id="simulation-value" type="number" min="0" max="900" value={changeValue} onChange={(e) => setChangeValue(e.target.value)} /><p className="text-xs text-muted-fg">Applied as a proportional estimate.</p></div>
           </div>
-          <Button onClick={runSimulation} disabled={streaming || !activeConnectionId}>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.018] px-4 py-3"><span className="text-sm text-fg/88">{humanize(variable || "selected metric")} will {direction} by {changeValue || "0"}%.</span><span className="text-xs text-muted-fg">Deterministic estimate</span></div>
+          <Button onClick={runSimulation} disabled={streaming || !activeConnectionId || !question.trim()}>
             {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {streaming ? "Running..." : "Run simulation"}
           </Button>
@@ -120,7 +127,7 @@ export default function SimulationPage() {
 
 function SimMetric({ label, value, icon: Icon }: { label: string; value: string; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-[rgba(10,16,27,0.9)] px-4 py-4">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-white/20">
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-accent" />
         <p className="text-[10px] uppercase tracking-[0.22em] text-muted-fg">{label}</p>
@@ -128,4 +135,8 @@ function SimMetric({ label, value, icon: Icon }: { label: string; value: string;
       <p className="mt-3 text-lg font-semibold text-fg">{value}</p>
     </div>
   );
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
