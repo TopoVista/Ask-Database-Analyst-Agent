@@ -5,12 +5,13 @@ import { useAuth } from "@clerk/nextjs";
 import { API_URL } from "@/lib/constants";
 import { consumeEventStream } from "@/lib/streaming";
 import { useChatStore } from "@/stores/chatStore";
-import type { AgentStep, QueryResult } from "@/types/agent";
+import type { AgentStep, DashboardResult, QueryResult } from "@/types/agent";
 
 export function useStreamingQuery() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentSteps, setCurrentSteps] = useState<AgentStep[]>([]);
   const [currentResults, setCurrentResults] = useState<QueryResult[] | null>(null);
+  const [currentDashboard, setCurrentDashboard] = useState<DashboardResult | null>(null);
   const { addMessage, updateLastMessage, currentSessionId } = useChatStore();
   const { getToken } = useAuth();
 
@@ -19,12 +20,14 @@ export function useStreamingQuery() {
       setIsStreaming(true);
       setCurrentSteps([]);
       setCurrentResults(null);
+      setCurrentDashboard(null);
 
       const token = await getToken();
       let insightBuffer = "";
       const queryResults: QueryResult[] = [];
       let intent: unknown = null;
       let analysis: unknown = null;
+      let specialistResults: unknown[] = [];
 
       addMessage({ role: "assistant", content: "", isStreaming: true });
 
@@ -75,6 +78,12 @@ export function useStreamingQuery() {
             case "analysis":
               analysis = event.data;
               break;
+            case "specialist_result":
+              specialistResults = [...specialistResults, event.data];
+              if (event.data.specialist === "dashboard_expert") {
+                setCurrentDashboard(event.data.result as DashboardResult);
+              }
+              break;
             case "insight_token":
               insightBuffer += event.data.token;
               updateLastMessage(insightBuffer);
@@ -86,6 +95,7 @@ export function useStreamingQuery() {
                   intent,
                   analysis,
                   queryResults,
+                  specialistResults,
                   executionTimeMs: event.data.execution_time_ms,
                 },
               });
@@ -113,5 +123,5 @@ export function useStreamingQuery() {
     [addMessage, updateLastMessage, currentSessionId, getToken]
   );
 
-  return { runQuery, isStreaming, currentSteps, currentResults };
+  return { runQuery, isStreaming, currentSteps, currentResults, currentDashboard };
 }

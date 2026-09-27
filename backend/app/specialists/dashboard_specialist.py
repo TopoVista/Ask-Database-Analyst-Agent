@@ -155,7 +155,9 @@ class DashboardSpecialist:
 
             if chart_spec:
                 panel["chart_spec"] = chart_spec
-                panel["chart_type"] = chart_spec.get("type", "table")
+                # ChartRecommender emits ``chart_type``; using ``type`` here
+                # silently downgraded every panel to a table in the UI.
+                panel["chart_type"] = chart_spec.get("chart_type", "table")
             else:
                 panel["chart_type"] = "table"
 

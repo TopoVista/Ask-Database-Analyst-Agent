@@ -83,29 +83,22 @@ New modules, existing pipeline refactored onto them without altering outputs:
 ## Phase 6 — Document intelligence & RAG (DONE)
 - `rag/parser.py` — `parse_document()` for TXT/MD/HTML/PDF → extracted text + metadata.
 - `rag/chunker.py` — sentence-based chunking with overlap, character offsets.
-- `rag/vector_store.py` — `VectorStore` abstraction; `InMemoryVectorStore` (cosine
-  similarity) + `ChromaVectorStore` (when `CHROMA_HOST` set); factory `get_default_store()`.
+- `rag/vector_store.py` — `VectorStore` abstraction; `InMemoryVectorStore` for local
+  development and bounded `DatabaseVectorStore` for managed-Postgres production; factory `get_default_store()`.
 - `rag/retriever.py` — `RAGRetriever`: ingest → chunk → embed → store with user_id;
   retrieval scoped by user_id + optional source filter.
 - Per-user access control enforced at ingest (user_id tag) and retrieval (filter).
 - Acceptance: 31 new tests green (parser, chunker, vector store, retriever); full suite 91/91.
 
-## Phase 7 — MCP (Model Context Protocol) integration (DONE)
-- `mcp/client.py` — `MCPClient` + `MCPTransport` protocol with `HTTPMCPTransport`
-  and `StdioMCPTransport` implementations; tool discovery and invocation.
-- `mcp/registry.py` — `MCPRegistry` for managing server lifecycle: register,
-  connect_all, list_servers, call_tool, unregister. Singleton `get_mcp_registry()`.
-- `MCPServerConfig` dataclass for server configuration (HTTP or stdio).
-- 17 new tests green (client tool discovery, call forwarding, error handling,
-  registry operations).
+## Phase 7 — MCP (Model Context Protocol) integration (REMOVED)
+- The isolated MCP package was never imported by a runtime route or pipeline.
+- It was removed to keep the deployed surface focused on the built-in specialist registry.
 
 ## Phase 8 — Automated dashboard generation (DONE)
-- `dashboard/specs.py` — `DashboardPanel`, `DashboardSpec`, `PanelLayout` dataclasses
-  with serialization; 12-column grid layout; auto-positioning of panels.
-- `dashboard/assembler.py` — `DashboardAssembler`: creates panels from query results
-  using chart recommender; generates per-panel narratives (metric/line/bar/scatter/
-  pie/table); auto-layouts in 2-column grid; overall dashboard summary.
-- 21 new tests green (narrative generation, panel creation, assembly, serialization).
+- `specialists/dashboard_specialist.py` assembles panels directly from executed query
+  results and their chart recommendations, without a duplicate dashboard package.
+- The frontend consumes the streamed `dashboard_expert` result and renders each panel.
+- Dashboard narratives and panel generation are covered by the specialist test suite.
 
 ## Phase 9 — Expanded specialist library
 - NLP/Text Specialist: text columns → tokenization, sentiment, entity

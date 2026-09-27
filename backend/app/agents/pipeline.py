@@ -282,11 +282,14 @@ class AgentPipeline:
             yield {"type": "step", "data": {"step": "hypothesis_generation", "message": "Generating hypotheses..."}}
             hypotheses = await self.hypothesis_agent.run(user_question, analysis, schema_str)
             for hyp in hypotheses.get("hypotheses", [])[:2]:
+                validation_query = hyp.get("validation_query")
+                if not isinstance(validation_query, str) or not validation_query.strip():
+                    continue
                 yield {
                     "type": "step",
                     "data": {"step": "hypothesis_validation", "message": f"Validating: {hyp['hypothesis'][:60]}..."},
                 }
-                val_sql_result = await self.sql_gen.run({"id": "VAL", "description": hyp["validation_query"]}, schema_str, query_results)
+                val_sql_result = await self.sql_gen.run({"id": "VAL", "description": validation_query}, schema_str, query_results)
                 val_exec = await self.executor.execute(connection_string, val_sql_result["sql"])
                 query_results.append({**val_sql_result, **val_exec, "is_validation": True})
 

@@ -29,5 +29,24 @@ export interface InsightMetadata {
   analysis?: unknown;
   queryResults?: QueryResult[];
   executionTimeMs?: number;
+  specialistResults?: unknown[];
+}
+
+export interface DashboardPanel {
+  id: string;
+  title: string;
+  narrative: string;
+  row_count: number;
+  columns: string[];
+  preview_rows: Record<string, unknown>[];
+  chart_spec?: ChartSpec;
+  chart_type?: ChartSpec["chart_type"];
+}
+
+export interface DashboardResult {
+  title: string;
+  panel_count: number;
+  panels: DashboardPanel[];
+  kpi_summary: Record<string, unknown>;
 }
 

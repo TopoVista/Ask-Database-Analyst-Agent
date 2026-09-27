@@ -44,12 +44,15 @@ class VectorMemory:
             session.add(item)
             await session.commit()
 
-    async def search_similar(self, query_text: str, limit: int = 3) -> list[dict[str, Any]]:
+    async def search_similar(self, query_text: str, limit: int = 3, candidate_limit: int = 200) -> list[dict[str, Any]]:
         sessionmaker = get_sessionmaker()
         query_embedding = await self.embedder.embed_text(query_text)
         async with sessionmaker() as session:
             result = await session.execute(
-                select(QueryEmbedding).where(QueryEmbedding.user_id == self.user_id)
+                select(QueryEmbedding)
+                .where(QueryEmbedding.user_id == self.user_id)
+                .order_by(QueryEmbedding.created_at.desc())
+                .limit(candidate_limit)
             )
             rows = result.scalars().all()
 

@@ -20,26 +20,12 @@
 
 html {
   color-scheme: dark;
-  background:
-    radial-gradient(circle at top left, rgba(252, 186, 73, 0.14), transparent 26%),
-    radial-gradient(circle at top right, rgba(101, 183, 255, 0.10), transparent 24%),
-    linear-gradient(180deg, #0b1018 0%, #080b12 100%);
+  background: #0d1117;
 }
 
 body {
   min-height: 100vh;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    radial-gradient(circle at top left, rgba(252, 186, 73, 0.10), transparent 24%),
-    radial-gradient(circle at right 15%, rgba(101, 183, 255, 0.08), transparent 22%),
-    linear-gradient(180deg, rgba(11, 16, 24, 0.98), rgba(8, 11, 18, 1));
-  background-size:
-    32px 32px,
-    32px 32px,
-    auto,
-    auto,
-    auto;
+  background: #0d1117;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

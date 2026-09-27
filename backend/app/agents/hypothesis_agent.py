@@ -39,8 +39,8 @@ Schema:
                 "hypotheses": [
                     {
                         "hypothesis": "The change may be concentrated in one major segment.",
-                        "validation_query": "SELECT 1 AS validation_signal LIMIT 1",
-                        "expected_signal": "Concentration in a small slice",
+                        "validation_query": "",
+                        "expected_signal": "Needs a schema-grounded segment comparison before validation.",
                         "priority": "medium",
                     }
                 ]

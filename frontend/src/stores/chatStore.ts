@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { InsightMetadata } from "@/types/agent";
 
 export interface Message {
   id: string;
@@ -6,12 +7,7 @@ export interface Message {
   content: string;
   isStreaming?: boolean;
   isError?: boolean;
-  metadata?: {
-    intent?: unknown;
-    analysis?: unknown;
-    queryResults?: unknown[];
-    executionTimeMs?: number;
-  };
+  metadata?: InsightMetadata;
   createdAt: string;
 }
 

@@ -256,8 +256,8 @@ def _local_hypotheses(question: str, analysis: dict[str, Any]) -> dict[str, Any]
         hypotheses.append(
             {
                 "hypothesis": f"{finding} This may be driven by a shift in mix or a change in the underlying volume.",
-                "validation_query": "SELECT 1 AS validation_signal LIMIT 1",
-                "expected_signal": "Directional confirmation",
+                "validation_query": "",
+                "expected_signal": "Requires a schema-grounded segment comparison.",
                 "priority": "high",
             }
         )
@@ -265,8 +265,8 @@ def _local_hypotheses(question: str, analysis: dict[str, Any]) -> dict[str, Any]
         hypotheses.append(
             {
                 "hypothesis": "No strong signal emerged, so the issue may be concentrated in a small segment.",
-                "validation_query": "SELECT 1 AS validation_signal LIMIT 1",
-                "expected_signal": "No significant deviation",
+                "validation_query": "",
+                "expected_signal": "Requires a schema-grounded segment comparison.",
                 "priority": "medium",
             }
         )
@@ -288,24 +288,6 @@ def _local_insight(question: str, intent: dict[str, Any], plan: dict[str, Any], 
         lines.append(f"Executed {len(query_results)} query steps and inspected the main contributors.")
     lines.append("Recommendation: validate the top driver segments and repeat the query on a smaller slice if the signal is concentrated.")
     return " ".join(lines)
-
-
-def _local_simulation(question: str, parameters: dict[str, Any], schema_context: str) -> dict[str, Any]:
-    return {
-        "simulation_plan": [
-            {
-                "label": "baseline",
-                "description": "Measure the current baseline",
-                "sql": "SELECT 1 AS baseline_value LIMIT 1",
-            },
-            {
-                "label": "projected",
-                "description": "Apply the hypothetical change mathematically",
-                "sql": "SELECT 1.1 AS projected_value LIMIT 1",
-            },
-        ],
-        "assumptions": [f"Scenario: {question}", f"Parameters: {json.dumps(parameters, default=str)}"],
-    }
 
 
 class LLMService:
@@ -429,12 +411,6 @@ class LLMService:
             except Exception:
                 results = []
             return json.dumps(_local_analysis(results))
-        if "business simulation expert" in prompt:
-            schema_match = re.search(r"Schema:\n(.+)", user_prompt, re.DOTALL)
-            schema_context = schema_match.group(1) if schema_match else ""
-            params_match = re.search(r"Parameters:\s*(\{.*\})", user_prompt)
-            params = json.loads(params_match.group(1)) if params_match else {}
-            return json.dumps(_local_simulation(question, params, schema_context))
         if "business analyst explaining simulation results" in prompt or "synthesizes all evidence" in prompt:
             try:
                 intent = json.loads(re.search(r"Intent:\s*(\{.*\})", user_prompt, re.DOTALL).group(1))

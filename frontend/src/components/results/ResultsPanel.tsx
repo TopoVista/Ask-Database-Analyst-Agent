@@ -8,8 +8,10 @@ import { DataTable } from "./DataTable";
 import { ChartRenderer } from "./ChartRenderer";
 import { InsightCard } from "./InsightCard";
 import { AnomalyBadge } from "./AnomalyBadge";
+import { DashboardView } from "./DashboardView";
+import type { DashboardResult } from "@/types/agent";
 
-export function ResultsPanel({ results }: { results: QueryResult[] }) {
+export function ResultsPanel({ results, dashboard }: { results: QueryResult[]; dashboard?: DashboardResult | null }) {
   if (!results.length) return null;
   const first = results.find((result) => result.success && result.rows.length > 0) ?? results[0];
   const rowLabel = `${first.rowCount ?? first.rows.length} ${first.rowCount === 1 || first.rows.length === 1 ? "row" : "rows"} returned`;
@@ -68,6 +70,7 @@ export function ResultsPanel({ results }: { results: QueryResult[] }) {
         title="What this means"
         summary="The SQL and tables above let you inspect the exact evidence behind the agent's answer."
       />
+      {dashboard ? <DashboardView dashboard={dashboard} /> : null}
     </div>
   );
 }

@@ -90,12 +90,11 @@ redaction before LLM prompts.
 - Frontend: Vercel (auto-deploys `main`; deployment verified working).
 - DB for app state: PostgreSQL (`DATABASE_URL`), SQLite default for local dev.
 
-## 3. What is deliberately NOT present (yet)
-File upload/ingestion of CSV/Excel/PDF/etc. · Python/code execution engine ·
-Vector store abstraction or real RAG over documents · Specialist/skill/tool
-registries · Intent-based routing to alternative pipelines · Dashboard spec /
-renderer · Critic/repair loop beyond SQL retry · MCP integration · Semantic
-column metadata · Provenance beyond `QueryHistory` rows.
+## 3. What is deliberately NOT present
+Python/code execution and a general external MCP integration are intentionally
+out of scope. The app instead uses built-in, bounded specialists, durable RAG
+in the existing application database, and dashboard rendering from streamed
+query evidence.
 
 These gaps are tracked honestly in [`CAPABILITY_MATRIX.md`](CAPABILITY_MATRIX.md).
 

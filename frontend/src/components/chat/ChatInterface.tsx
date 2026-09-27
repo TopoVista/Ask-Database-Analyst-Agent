@@ -42,12 +42,12 @@ export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
-  const { runQuery, isStreaming, currentSteps, currentResults } = useStreamingQuery();
+  const { runQuery, isStreaming, currentSteps, currentResults, currentDashboard } = useStreamingQuery();
 
   useEffect(() => {
     if (!autoScrollEnabled || !shouldStickToBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, currentSteps, currentResults, autoScrollEnabled]);
+  }, [messages, currentSteps, currentResults, currentDashboard, autoScrollEnabled]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -63,7 +63,7 @@ export function ChatInterface() {
     handleScroll();
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [messages, currentSteps, currentResults]);
+  }, [messages, currentSteps, currentResults, currentDashboard]);
 
   const handleSubmit = async (question: string) => {
     if (!activeConnectionId) return;
@@ -134,7 +134,7 @@ export function ChatInterface() {
 
         <div className="mx-auto mt-5 max-w-5xl space-y-5">
           {isStreaming && <ThinkingSteps steps={currentSteps} />}
-          {currentResults && <ResultsPanel results={currentResults} />}
+          {currentResults && <ResultsPanel results={currentResults} dashboard={currentDashboard} />}
         </div>
 
         {isStreaming && !autoScrollEnabled ? (

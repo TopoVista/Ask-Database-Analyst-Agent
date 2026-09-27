@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.rag.vector_store import (
+    DatabaseVectorStore,
     InMemoryVectorStore,
     StoredChunk,
     VectorStore,
@@ -109,3 +110,18 @@ class TestFactory:
         store1 = get_default_store()
         store2 = get_default_store()
         assert store1 is store2
+
+
+@pytest.mark.asyncio
+async def test_database_store_persists_and_scopes_chunks(tmp_path):
+    store = DatabaseVectorStore(f"sqlite+aiosqlite:///{tmp_path / 'rag.db'}", candidate_limit=10)
+    await store.add_chunks([
+        _make_chunk("user-1", "owned document", user_id="owner", embedding=[1.0, 0.0]),
+        _make_chunk("user-2", "other document", user_id="other", embedding=[1.0, 0.0]),
+    ])
+
+    results = await store.search([1.0, 0.0], user_id="owner")
+
+    assert [chunk.id for chunk, _ in results] == ["user-1"]
+    assert await store.delete_by_source("test.txt", user_id="owner") == 1
+    await store.aclose()

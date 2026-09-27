@@ -28,10 +28,10 @@ Phases 1–5 complete, 60 backend tests passing.
 | Provenance | 🟡 | `QueryHistory` + `ArtifactStore`; audit trail present but not user-facing |
 | File upload ingestion (Parquet) | 🟡 | CSV/Excel/JSON supported; Parquet pending |
 | Python/code execution engine | ❌ | None (by design today) |
-| RAG over documents / vector store abstraction | ✅ | `rag/` package: parse TXT/MD/HTML/PDF, sentence chunking, embed, store with per-user scoping; `InMemoryVectorStore` + `ChromaVectorStore` backends |
-| Dashboard spec / generation / editing | 🟡 | Single-chart rendering; dashboard spec model exists in artifact store but no multi-panel renderer |
+| RAG over documents / vector store abstraction | ✅ | `rag/` package: parse TXT/MD/HTML/PDF, sentence chunking, embed, and per-user retrieval; durable `DatabaseVectorStore` uses the existing managed database in production |
+| Dashboard spec / generation / editing | ✅ | `DashboardSpecialist` assembles multi-panel chart descriptors and the dashboard workspace renders them from streamed specialist results |
 | Critic/repair loop beyond SQL retry | 🟡 | SQL self-repair (×3); no statistical/chart-level validation yet |
-| MCP integration | ✅ | `mcp/` package: `MCPClient` with HTTP + stdio transports, `MCPRegistry` for server lifecycle, tool discovery and invocation |
+| MCP integration | ❌ | Removed: it was not connected to any runtime workflow or API route |
 | NLP / forecasting / causal / ML / geospatial | ❌ | Specialist entries registered but `available=False` until workflows exist |
 
 ## B. Data types the system can work with today

@@ -101,7 +101,7 @@ class RAGRetriever:
         if len(chunks) > settings.max_document_chunks:
             raise ValueError(f"Document creates {len(chunks)} chunks; limit is {settings.max_document_chunks}.")
         if isinstance(self.store, InMemoryVectorStore) and self.store.count() + len(chunks) > settings.max_in_memory_chunks:
-            raise MemoryError("Document storage is at capacity. Delete an existing document or configure Chroma.")
+            raise MemoryError("Document storage is at capacity. Delete an existing document before uploading another.")
 
         # Step 3: Embed each chunk
         stored_chunks: list[StoredChunk] = []

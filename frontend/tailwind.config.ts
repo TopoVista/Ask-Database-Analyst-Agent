@@ -28,11 +28,7 @@ const config: Config = {
         mono: ["var(--font-mono)", "monospace"],
       },
       boxShadow: {
-        glow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 70px rgba(1,8,20,0.38)",
-      },
-      backgroundImage: {
-        "aurora-grid":
-          "radial-gradient(circle at top left, rgba(255, 183, 77, 0.16), transparent 28%), radial-gradient(circle at top right, rgba(76, 201, 240, 0.12), transparent 30%), linear-gradient(180deg, rgba(10, 13, 22, 0.95), rgba(7, 10, 15, 1))",
+        glow: "0 1px 2px rgba(0,0,0,0.24)",
       },
     },
   },

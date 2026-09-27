@@ -12,6 +12,9 @@ import {
   Line,
   ScatterChart,
   Scatter,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { AlertTriangle, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +27,7 @@ function getChartData(rows: Record<string, unknown>[]) {
 
 function inferNumericKeys(rows: Record<string, unknown>[]) {
   const first = rows[0] ?? {};
-  return Object.keys(first).filter((key) => typeof first[key] === "number");
+  return Object.keys(first).filter((key) => Number.isFinite(Number(first[key])) && first[key] !== "");
 }
 
 const AXIS_TICK = { fill: "#9aa6ba", fontSize: 12 };
@@ -33,6 +36,7 @@ const TOOLTIP_STYLE = {
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: 16,
 };
+const PIE_COLORS = ["#65b7ff", "#fcba49", "#8dd3a7", "#bd9cff", "#f08f83"];
 
 function MetricCard({ label, value }: { label: string; value: unknown }) {
   return (
@@ -128,15 +132,24 @@ export function ChartRenderer({
       chart = (
         <ScatterChart>
           <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-          <XAxis type="category" dataKey={xAxisKey} tick={AXIS_TICK} />
+          <XAxis type="number" dataKey={xAxisKey} tick={AXIS_TICK} />
           <YAxis type="number" dataKey={metricKey} tick={AXIS_TICK} />
           <Tooltip contentStyle={TOOLTIP_STYLE} />
           <Scatter data={chartData} fill="#65b7ff" />
         </ScatterChart>
       );
       break;
-    case "bar":
     case "pie":
+      chart = (
+        <PieChart>
+          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Pie data={chartData} dataKey={metricKey} nameKey={xAxisKey} outerRadius={100}>
+            {chartData.map((_, index) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
+          </Pie>
+        </PieChart>
+      );
+      break;
+    case "bar":
       chart = (
         <BarChart data={chartData}>
           <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
@@ -147,6 +160,15 @@ export function ChartRenderer({
         </BarChart>
       );
       break;
+    case "table":
+      return (
+        <Card>
+          <ChartCaption spec={spec} />
+          <CardContent className="flex h-[180px] items-center text-sm text-muted-fg">
+            This result is best inspected in the table below.
+          </CardContent>
+        </Card>
+      );
     case "line":
     default:
       chart = (
