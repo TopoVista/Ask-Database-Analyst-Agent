@@ -26,9 +26,6 @@ services:
       - key: ENCRYPTION_KEY
         sync: false          # Fernet key used to encrypt user database credentials
 
-      - key: RAG_STORE_BACKEND
-        value: database
-
       - key: CLERK_ISSUER
         sync: false          # e.g. https://<instance>.clerk.accounts.dev
 

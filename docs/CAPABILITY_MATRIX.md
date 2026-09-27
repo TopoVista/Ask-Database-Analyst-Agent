@@ -28,7 +28,7 @@ Phases 1–5 complete, 60 backend tests passing.
 | Provenance | 🟡 | `QueryHistory` + `ArtifactStore`; audit trail present but not user-facing |
 | File upload ingestion (Parquet) | 🟡 | CSV/Excel/JSON supported; Parquet pending |
 | Python/code execution engine | ❌ | None (by design today) |
-| RAG over documents / vector store abstraction | ✅ | `rag/` package: parse TXT/MD/HTML/PDF, sentence chunking, embed, and per-user retrieval; durable `DatabaseVectorStore` uses the existing managed database in production |
+| RAG over documents / vector store abstraction | ❌ | Removed from the product and deployment |
 | Dashboard spec / generation / editing | ✅ | `DashboardSpecialist` assembles multi-panel chart descriptors and the dashboard workspace renders them from streamed specialist results |
 | Critic/repair loop beyond SQL retry | 🟡 | SQL self-repair (×3); no statistical/chart-level validation yet |
 | MCP integration | ❌ | Removed: it was not connected to any runtime workflow or API route |
@@ -40,7 +40,7 @@ Phases 1–5 complete, 60 backend tests passing.
 |---|---|---|
 | Relational databases (Postgres, BigQuery, SQLite) | ✅ | `connections` + `schema_inspector` |
 | CSV/Excel/JSON files | ✅ | `data/ingestion.py` → DuckDB |
-| PDF/DOCX/HTML/MD documents | 🟡 | Parser + chunker + embedder for TXT/MD/HTML/PDF; retrieval scoped per-user |
+| PDF/DOCX/HTML/MD documents | ❌ | Document-RAG feature removed |
 | Time-series columns | 🟡 | Can aggregate/filter via SQL; no dedicated forecasting workflow |
 | Geospatial columns | 🟡 | Treated as ordinary columns; no geo detection/maps |
 | Text-heavy columns | 🟡 | Treated as ordinary columns; no NLP workflows |
@@ -63,11 +63,11 @@ Phases 1–5 complete, 60 backend tests passing.
 | Anomaly/Fraud Expert | 🟡 | 5/9 (z-score/IQR on single results) |
 | NLP Expert | ❌ | 9 |
 | Geospatial Analyst | ❌ | 9 |
-| Document Intelligence Analyst | 🟡 | 6 (parser + chunker + embedder + retriever; no API endpoint yet) |
+| Document Intelligence Analyst | ❌ | Removed with the document-RAG feature |
 | Multimodal Analyst | ❌ | 9 (extension layer only) |
 | Data Engineer | ✅ | 3 (ingestion layer) |
 | Dashboard/BI Expert | ❌ | 8 |
-| Research/Fact-Finding Agent | 🟡 | 6/9 (RAG retriever with per-user scoping exists; agent workflow pending) |
+| Research/Fact-Finding Agent | ❌ | No document-retrieval workflow |
 | Reporting/Storytelling Agent | 🟡 | 8/10 (InsightAgent narrates one analysis) |
 
 Rule honored throughout the plan: a role with ❌ stays ❌ in the product until

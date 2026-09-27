@@ -46,8 +46,6 @@ class Settings(BaseSettings):
     schema_max_tables: int = Field(default=100, ge=1, le=250)
     schema_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
     max_schema_prompt_chars: int = Field(default=50_000, ge=5_000, le=100_000)
-    max_document_chunks: int = Field(default=200, ge=1, le=500)
-    max_in_memory_chunks: int = Field(default=2_000, ge=100, le=10_000)
     max_artifacts_per_session: int = Field(default=50, ge=5, le=200)
     max_local_cache_entries: int = Field(default=500, ge=50, le=2_000)
     max_specialist_rows: int = Field(default=500, ge=25, le=2_000)
@@ -69,10 +67,6 @@ class Settings(BaseSettings):
     # Uploads are temporary working files, never application persistence.
     uploads_dir: str = "/tmp/ask-database-uploads"
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)
-    # RAG persistence: in_memory is for local use only. database persists
-    # document chunks in the managed Postgres database without another service.
-    rag_store_backend: str = "in_memory"
-    rag_search_candidate_limit: int = Field(default=500, ge=25, le=2_000)
 
     @model_validator(mode="after")
     def parse_allowed_origins(self) -> "Settings":

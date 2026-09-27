@@ -96,7 +96,6 @@ _SPECIALIST_CLASSES: dict[str, type | None] = {
     "anomaly_detector": None,          # handled by AnomalyDetector tool in pipeline
     "anomaly_advanced": AnomalySpecialist,
     "business_simulator": None,
-    "document_intelligence_analyst": None,
     "nlp_text_analyst": NLPSpecialist,
     "time_series_forecaster": TimeSeriesSpecialist,
     "ml_scientist": MLSpecialist,
@@ -186,15 +185,6 @@ def _register_all() -> SpecialistRegistry:
             capabilities=["simulation", "forecasting"],
             supported_data_types=["tabular", "time_series"],
             tools=["schema_inspector", "sql_executor"],
-            available=True,
-        ),
-        Specialist(
-            id="document_intelligence_analyst",
-            name="Document Intelligence Analyst",
-            description="Parses and queries uploaded documents (PDF/TXT/MD) via RAG.",
-            capabilities=["document_ingestion", "document_retrieval", "document_qa"],
-            supported_data_types=["document", "pdf", "text"],
-            tools=["vector_store", "document_parser"],
             available=True,
         ),
         Specialist(

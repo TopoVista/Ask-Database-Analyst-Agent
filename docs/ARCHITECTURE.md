@@ -92,9 +92,8 @@ redaction before LLM prompts.
 
 ## 3. What is deliberately NOT present
 Python/code execution and a general external MCP integration are intentionally
-out of scope. The app instead uses built-in, bounded specialists, durable RAG
-in the existing application database, and dashboard rendering from streamed
-query evidence.
+out of scope. The app instead uses built-in, bounded specialists and dashboard
+rendering from streamed query evidence.
 
 These gaps are tracked honestly in [`CAPABILITY_MATRIX.md`](CAPABILITY_MATRIX.md).
 

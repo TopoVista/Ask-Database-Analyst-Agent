@@ -63,7 +63,7 @@ Architecture: browser → Vercel Next.js `/api/*` proxy → Render FastAPI → m
 
 Create a web service from `render.yaml`. Set `DATABASE_URL` to the managed PostgreSQL connection URL and `OPENAI_API_KEY` if OpenAI-backed responses are required. Set `ALLOWED_ORIGINS` to your local and production frontend origins. The container respects Render's `PORT`, uses one Uvicorn worker, and uses a conservative primary-database pool (2 connections plus one overflow). `GET /health` is a lightweight liveness check.
 
-The same managed PostgreSQL database stores application state, session history, and durable RAG chunks. No Redis, Chroma, worker service, or additional Render service is required.
+The managed PostgreSQL database stores application state and session history. No Redis, Chroma, worker service, document-retrieval service, or additional Render service is required.
 
 Run migrations as a one-off release/manual command before the first deploy:
 

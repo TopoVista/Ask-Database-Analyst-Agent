@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FileText, FlaskConical, Brain, BarChart3 } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,6 @@ const NAV_ITEMS = [
   { href: "/connections", icon: Database, label: "Connections" },
   { href: "/schema", icon: Sigma, label: "Schema" },
   { href: "/datasets", icon: FileSpreadsheet, label: "Datasets" },
-  { href: "/documents", icon: FileText, label: "Documents" },
   { href: "/simulation", icon: FlaskConical, label: "Simulation" },
   { href: "/specialists", icon: Brain, label: "Specialists" },
   { href: "/evaluation", icon: BarChart3, label: "Evaluation" },
@@ -26,7 +25,6 @@ const PAGE_LABELS: Record<string, string> = {
   "/connections": "Connection management",
   "/schema": "Schema explorer",
   "/datasets": "Dataset management",
-  "/documents": "RAG document search",
   "/simulation": "What-if simulation",
   "/specialists": "Specialist agents",
   "/evaluation": "Benchmarks and audits",

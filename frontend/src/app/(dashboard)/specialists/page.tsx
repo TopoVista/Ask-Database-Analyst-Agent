@@ -40,11 +40,22 @@ const FALLBACK_INPUTS: Record<string, SpecialistInput[]> = {
 
 const humanize = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const splitList = (value: string, numeric = false) => value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).map((item) => numeric ? Number(item) : item).filter((item) => !numeric || Number.isFinite(item));
+const splitCsvLine = (line: string) => {
+  const cells: string[] = []; let cell = ""; let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' && line[index + 1] === '"' && quoted) { cell += char; index += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { cells.push(cell.trim()); cell = ""; }
+    else cell += char;
+  }
+  return [...cells, cell.trim()];
+};
 const parseRows = (value: string) => {
   const [header = "", ...lines] = value.trim().split(/\r?\n/).filter(Boolean);
-  const columns = header.split(",").map((item) => item.trim()).filter(Boolean);
+  const columns = splitCsvLine(header).filter(Boolean);
   const rows = lines.map((line) => Object.fromEntries(columns.map((column, index) => {
-    const raw = line.split(",")[index]?.trim() ?? "";
+    const raw = splitCsvLine(line)[index] ?? "";
     const numeric = Number(raw);
     return [column, raw !== "" && Number.isFinite(numeric) ? numeric : raw];
   }))).filter((row) => Object.keys(row).length);
@@ -109,15 +120,20 @@ export default function SpecialistsPage() {
   </div>;
 }
 
-function SkillForm({ inputs, values, onChange }: { inputs: SpecialistInput[]; values: Values; onChange: (name: string, value: string) => void }) {
+function SkillForm({ inputs, values, onChange, onUpload: suppliedUpload }: { inputs: SpecialistInput[]; values: Values; onChange: (name: string, value: string) => void; onUpload?: (name: string, file?: File) => void }) {
   if (!inputs.length) return null;
+  const onUpload = suppliedUpload ?? (async (name: string, file?: File) => {
+    if (!file || file.size > 1024 * 1024) return;
+    if (!file.name.toLowerCase().endsWith(".csv") && file.type && file.type !== "text/csv") return;
+    onChange(name, (await file.text()).replace(/^\uFEFF/, ""));
+  });
   return <div className="grid gap-4 md:grid-cols-2">{inputs.map((input) => {
     const value = values[input.name] ?? (input.default == null ? "" : String(input.default));
     const csv = input.kind === "rows";
     const list = input.kind === "list";
     if (input.kind === "object") return <p key={input.name} className="md:col-span-2 text-xs text-muted-fg">{humanize(input.name)} is optional and is produced by the preceding specialist result.</p>;
     const label = input.name === "query_results" ? "Data rows" : humanize(input.name);
-    return <label key={input.name} className={csv || input.name === "text" || list ? "space-y-2 md:col-span-2" : "space-y-2"}><span className="text-xs font-medium text-fg">{label}{input.required ? " *" : ""}</span>{input.kind === "boolean" ? <select value={value || "false"} onChange={(event) => onChange(input.name, event.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] px-4 text-sm text-fg"><option value="false">No</option><option value="true">Yes</option></select> : csv || input.name === "text" || list ? <Textarea value={value} onChange={(event) => onChange(input.name, event.target.value)} placeholder={csv ? "region,revenue\nNorth,420\nSouth,280" : list ? "One value per line or comma-separated" : `Enter ${label.toLowerCase()}`} /> : <Input type={input.kind === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(input.name, event.target.value)} />}{csv && <span className="block text-xs text-muted-fg">Paste CSV: the first row is column names. This becomes the data table for the specialist.</span>}</label>;
+    return <label key={input.name} className={csv || input.name === "text" || list ? "space-y-2 md:col-span-2" : "space-y-2"}><span className="text-xs font-medium text-fg">{label}{input.required ? " *" : ""}</span>{input.kind === "boolean" ? <select value={value || "false"} onChange={(event) => onChange(input.name, event.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] px-4 text-sm text-fg"><option value="false">No</option><option value="true">Yes</option></select> : csv || input.name === "text" || list ? <Textarea value={value} onChange={(event) => onChange(input.name, event.target.value)} placeholder={csv ? "region,revenue\nNorth,420\nSouth,280" : list ? "One value per line or comma-separated" : `Enter ${label.toLowerCase()}`} /> : <Input type={input.kind === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(input.name, event.target.value)} />}{csv && <><span className="block text-xs text-muted-fg">Paste CSV: the first row is column names. This becomes the data table for the specialist.</span><span className="flex flex-wrap items-center gap-3"><span className="inline-flex cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-fg transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent/10">Choose CSV file<input className="sr-only" type="file" accept=".csv,text/csv" onChange={(event) => onUpload(input.name, event.target.files?.[0])}/></span><span className="text-xs text-muted-fg">Read only in your browser; it is not uploaded or stored.</span></span></>}</label>;
   })}</div>;
 }
 

@@ -4,7 +4,7 @@
 
 The deployed application is one Render web service plus its managed PostgreSQL
 database. `render.yaml` keeps agent concurrency at one and bounds query,
-schema, specialist, and RAG workloads for a 512 MB instance. No worker,
+schema and specialist workloads for a 512 MB instance. No worker,
 Redis, Chroma, MCP, or additional Render service is required.
 
 ## Removed unreachable code
@@ -21,9 +21,8 @@ Redis, Chroma, MCP, or additional Render service is required.
 
 ## Production logic retained and corrected
 
-- RAG chunks persist in `rag_document_chunks` in the existing application
-  database. Retrieval is user-scoped and ranks at most the configured candidate
-  limit in memory.
+- Document RAG was removed with its API, frontend route, dependencies, and
+  `rag_document_chunks` migration cleanup; it is not part of the runtime.
 - Session context reads completed `QueryHistory` rows from the app database,
   rather than relying on ephemeral disk or an absent Redis service.
 - Diagnostic fallback hypotheses no longer run a misleading `SELECT 1`.

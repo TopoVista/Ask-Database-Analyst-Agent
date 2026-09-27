@@ -80,15 +80,9 @@ New modules, existing pipeline refactored onto them without altering outputs:
 - Acceptance: upload → EDA summary with statistics; anomaly detection on a
   result set returns actionable outliers; tests for statistical helpers.
 
-## Phase 6 — Document intelligence & RAG (DONE)
-- `rag/parser.py` — `parse_document()` for TXT/MD/HTML/PDF → extracted text + metadata.
-- `rag/chunker.py` — sentence-based chunking with overlap, character offsets.
-- `rag/vector_store.py` — `VectorStore` abstraction; `InMemoryVectorStore` for local
-  development and bounded `DatabaseVectorStore` for managed-Postgres production; factory `get_default_store()`.
-- `rag/retriever.py` — `RAGRetriever`: ingest → chunk → embed → store with user_id;
-  retrieval scoped by user_id + optional source filter.
-- Per-user access control enforced at ingest (user_id tag) and retrieval (filter).
-- Acceptance: 31 new tests green (parser, chunker, vector store, retriever); full suite 91/91.
+## Phase 6 — Document intelligence & RAG (REMOVED)
+- The document-upload and retrieval feature was removed to keep the Render deployment focused on database analysis.
+- Migration `004_remove_rag_document_chunks` removes the retired RAG table from deployed databases.
 
 ## Phase 7 — MCP (Model Context Protocol) integration (REMOVED)
 - The isolated MCP package was never imported by a runtime route or pipeline.
