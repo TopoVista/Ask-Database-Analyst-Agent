@@ -148,6 +148,14 @@ export interface SpecialistInfo {
   available: boolean;
   direct_invocation: boolean;
   skills: string[];
+  skill_inputs?: Record<string, SpecialistInput[]>;
+}
+
+export interface SpecialistInput {
+  name: string;
+  kind: "text" | "number" | "boolean" | "list" | "rows" | "object";
+  required: boolean;
+  default: unknown;
 }
 
 export async function listSpecialists(token?: string | null) {

@@ -26,6 +26,8 @@ async def test_list_specialists(client):
     direct = next(item for item in data["specialists"] if item["id"] == "nlp_text_analyst")
     assert direct["direct_invocation"] is True
     assert "sentiment" in direct["skills"]
+    text_input = next(field for field in direct["skill_inputs"]["sentiment"] if field["name"] == "text")
+    assert text_input == {"name": "text", "kind": "text", "required": True, "default": None}
 
 
 @pytest.mark.asyncio
@@ -65,3 +67,25 @@ async def test_direct_specialist_input_is_bounded(client):
         json={"skill": "detect_anomalies", "params": {"data": [{"value": 1}] * 501, "columns": ["value"]}},
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_dashboard_invocation_returns_chart_panel(client):
+    response = await client.post(
+        "/api/v1/specialists/dashboard_expert/invoke",
+        json={
+            "skill": "assemble_dashboard",
+            "params": {
+                "query_results": [{
+                    "success": True,
+                    "task_id": "manual",
+                    "task_description": "Revenue by region",
+                    "columns": ["region", "revenue"],
+                    "rows": [{"region": "North", "revenue": 40}, {"region": "South", "revenue": 20}],
+                }],
+            },
+        },
+    )
+    assert response.status_code == 200
+    panel = response.json()["result"]["panels"][0]
+    assert panel["chart_spec"]["chart_type"] == "bar"

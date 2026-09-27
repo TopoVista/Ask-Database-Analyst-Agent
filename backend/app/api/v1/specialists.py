@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter, Depends, HTTPException
 import structlog
@@ -31,9 +31,38 @@ def _registered_skills(instance: Any) -> dict[str, Any]:
     }
 
 
+def _input_kind(annotation: Any) -> str:
+    origin = get_origin(annotation)
+    if origin is list:
+        item = get_args(annotation)[0] if get_args(annotation) else Any
+        return "rows" if get_origin(item) is dict or item is dict else "list"
+    if annotation in (int, float):
+        return "number"
+    if annotation is bool:
+        return "boolean"
+    if get_origin(annotation) is dict or annotation is dict:
+        return "object"
+    return "text"
+
+
+def _skill_inputs(method: Any) -> list[dict[str, Any]]:
+    hints = get_type_hints(method)
+    return [
+        {
+            "name": parameter.name,
+            "kind": _input_kind(hints.get(parameter.name, parameter.annotation)),
+            "required": parameter.default is inspect.Parameter.empty,
+            "default": None if parameter.default is inspect.Parameter.empty else parameter.default,
+        }
+        for parameter in inspect.signature(method).parameters.values()
+        if parameter.name != "self"
+    ]
+
+
 def _specialist_payload(spec: Any, cls: type | None) -> dict[str, Any]:
     """Expose callable skill names, not the broader capability labels."""
-    skills = sorted(_registered_skills(cls())) if cls is not None else []
+    methods = _registered_skills(cls()) if cls is not None else {}
+    skills = sorted(methods)
     return {
         "id": spec.id,
         "name": spec.name,
@@ -44,6 +73,7 @@ def _specialist_payload(spec: Any, cls: type | None) -> dict[str, Any]:
         "available": spec.available,
         "direct_invocation": cls is not None,
         "skills": skills,
+        "skill_inputs": {name: _skill_inputs(methods[name]) for name in skills},
     }
 
 

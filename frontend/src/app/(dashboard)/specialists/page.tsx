@@ -1,195 +1,102 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Brain, Loader2, Play, Wrench } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/nextjs";
-import { invokeSpecialist, listSpecialists, type SpecialistInfo } from "@/lib/api";
+import { invokeSpecialist, listSpecialists, type SpecialistInfo, type SpecialistInput } from "@/lib/api";
+import type { DashboardResult } from "@/types/agent";
+import { DashboardView } from "@/components/results/DashboardView";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+type Values = Record<string, string>;
+
+const humanize = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const splitList = (value: string, numeric = false) => value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).map((item) => numeric ? Number(item) : item).filter((item) => !numeric || Number.isFinite(item));
+const parseRows = (value: string) => {
+  const [header = "", ...lines] = value.trim().split(/\r?\n/).filter(Boolean);
+  const columns = header.split(",").map((item) => item.trim()).filter(Boolean);
+  const rows = lines.map((line) => Object.fromEntries(columns.map((column, index) => {
+    const raw = line.split(",")[index]?.trim() ?? "";
+    const numeric = Number(raw);
+    return [column, raw !== "" && Number.isFinite(numeric) ? numeric : raw];
+  }))).filter((row) => Object.keys(row).length);
+  return { columns, rows };
+};
+
+function valuesToParams(inputs: SpecialistInput[], values: Values) {
+  const params: Record<string, unknown> = {};
+  for (const input of inputs) {
+    const value = values[input.name] ?? "";
+    if (!value && !input.required) continue;
+    if (input.kind === "number") params[input.name] = Number(value);
+    else if (input.kind === "boolean") params[input.name] = value === "true";
+    else if (input.kind === "list") params[input.name] = splitList(value, input.name === "values");
+    else if (input.kind === "rows") {
+      const { columns, rows } = parseRows(value);
+      if (input.name === "query_results") {
+        params[input.name] = [{ success: true, task_id: "manual", task_description: "Manual dataset analysis", columns, rows, row_count: rows.length }];
+      } else {
+        params[input.name] = rows;
+        if (inputs.some((candidate) => candidate.name === "columns") && !values.columns) params.columns = columns;
+      }
+    } else if (input.kind !== "object") params[input.name] = value;
+  }
+  return params;
+}
+
+function isDashboard(value: unknown): value is DashboardResult {
+  return Boolean(value && typeof value === "object" && Array.isArray((value as DashboardResult).panels));
+}
 
 export default function SpecialistsPage() {
   const { getToken, isLoaded, userId } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [skillParams, setSkillParams] = useState<string>("");
-  const [invokeResult, setInvokeResult] = useState<unknown>(null);
-  const [invoking, setInvoking] = useState(false);
+  const [skill, setSkill] = useState("");
+  const [values, setValues] = useState<Values>({});
+  const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
+  const [invoking, setInvoking] = useState(false);
+  const query = useQuery({ queryKey: ["specialists"], queryFn: async () => listSpecialists(await getToken()), enabled: isLoaded && Boolean(userId), retry: 1 });
+  const specialists = query.data?.specialists ?? [];
+  const selected = specialists.find((item) => item.id === selectedId) ?? null;
+  const inputs = selected?.skill_inputs?.[skill] ?? [];
 
-  const specialistsQuery = useQuery({
-    queryKey: ["specialists"],
-    queryFn: async () => listSpecialists(await getToken()),
-    enabled: isLoaded && Boolean(userId),
-    retry: 1,
-  });
+  useEffect(() => {
+    const first = selected?.skills[0] ?? "";
+    setSkill(first); setValues({}); setResult(null); setError(null);
+  }, [selectedId, selected?.skills]);
 
-  const specialists = specialistsQuery.data?.specialists ?? [];
-  const selected = specialists.find((s) => s.id === selectedId) ?? null;
-
-  const handleInvoke = async (skill: string) => {
-    if (!selectedId) return;
-    setInvoking(true);
-    setError(null);
-    setInvokeResult(null);
-    try {
-      const token = await getToken();
-      let params: Record<string, unknown> = {};
-      if (skillParams.trim()) {
-        try { params = JSON.parse(skillParams); } catch {
-          setError("Invalid JSON parameters");
-          setInvoking(false);
-          return;
-        }
-      }
-      const result = await invokeSpecialist(selectedId, skill, params, token);
-      setInvokeResult(result.result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invocation failed");
-    } finally {
-      setInvoking(false);
-    }
+  const invoke = async () => {
+    if (!selected || !skill) return;
+    setInvoking(true); setError(null); setResult(null);
+    try { setResult((await invokeSpecialist(selected.id, skill, valuesToParams(inputs, values), await getToken())).result); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Invocation failed"); }
+    finally { setInvoking(false); }
   };
 
-  return (
-    <div className="space-y-6 px-4 py-6 md:px-6 lg:px-8">
-      <Card>
-        <CardHeader className="border-b border-white/10">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <Badge className="border-accent/20 bg-accent/10 text-accent">Specialist Agents</Badge>
-              <CardTitle className="mt-4 text-3xl">Browse and invoke specialized agents</CardTitle>
-              <CardDescription className="mt-3 text-base text-fg/72">
-                Each specialist handles a narrow task. Select one and invoke its skills directly.
-              </CardDescription>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SpecMetric label="Total" value={String(specialists.length)} icon={Brain} />
-              <SpecMetric label="Selected" value={selected ? selected.name : "None"} icon={Wrench} />
-              <SpecMetric label="Status" value={invoking ? "Running" : "Ready"} icon={Play} />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-      <div className="grid gap-6 xl:grid-cols-[0.4fr,0.6fr]">
-        <SpecialistList
-          specialists={specialists}
-          isLoading={specialistsQuery.isLoading}
-          error={specialistsQuery.error instanceof Error ? specialistsQuery.error.message : null}
-          selectedId={selectedId}
-          onSelect={(id) => { setSelectedId(id); setInvokeResult(null); setError(null); }}
-        />
-        <SpecialistDetail
-          selected={selected}
-          skillParams={skillParams}
-          onParamsChange={setSkillParams}
-          onInvoke={handleInvoke}
-          invoking={invoking}
-          error={error}
-          result={invokeResult}
-        />
-      </div>
-    </div>
-  );
+  return <div className="space-y-6 px-4 py-6 md:px-6 lg:px-8">
+    <Card><CardHeader className="border-b border-white/10"><div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-2xl"><Badge className="border-accent/20 bg-accent/10 text-accent">Specialist Agents</Badge><CardTitle className="mt-4 text-3xl">Specialist workbench</CardTitle><CardDescription className="mt-3 text-base text-fg/72">Choose an analytical skill, fill in its guided inputs, and inspect the result without writing JSON.</CardDescription></div><div className="grid gap-3 sm:grid-cols-3"><Metric label="Total" value={String(specialists.length)} icon={Brain}/><Metric label="Selected" value={selected?.name ?? "None"} icon={Wrench}/><Metric label="Status" value={invoking ? "Running" : "Ready"} icon={Play}/></div></div></CardHeader></Card>
+    <div className="grid gap-6 xl:grid-cols-[0.4fr,0.6fr]"><SpecialistList specialists={specialists} selectedId={selectedId} loading={query.isLoading} error={query.error instanceof Error ? query.error.message : null} onSelect={setSelectedId}/><Card><CardHeader><CardTitle>{selected?.name ?? "Specialist details"}</CardTitle><CardDescription>{selected?.description ?? "Select a specialist to view its skills."}</CardDescription></CardHeader><CardContent className="space-y-5">{selected ? <><div className="flex flex-wrap gap-2">{selected.capabilities.map((item) => <Badge key={item} className="border-white/10 bg-white/6 text-fg/80">{item}</Badge>)}</div>{selected.direct_invocation && selected.skills.length ? <><div className="flex flex-wrap gap-2">{selected.skills.map((item) => <Button key={item} variant={skill === item ? "secondary" : "outline"} size="sm" onClick={() => { setSkill(item); setValues({}); setResult(null); }}>{humanize(item)}</Button>)}</div><SkillForm inputs={inputs} values={values} onChange={(name, value) => setValues((current) => ({ ...current, [name]: value }))}/><Button onClick={invoke} disabled={invoking || !selected.available || inputs.some((input) => input.required && !values[input.name])}>{invoking ? <Loader2 className="h-4 w-4 animate-spin"/> : <Play className="h-4 w-4"/>}Run {humanize(skill)}</Button></> : <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-muted-fg">This specialist runs automatically as part of the analysis workflow.</p>}{error && <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}{result !== null && (isDashboard(result) ? <DashboardView dashboard={result}/> : <Result value={result}/>)}</> : <Empty>Select a specialist.</Empty>}</CardContent></Card></div>
+  </div>;
 }
 
-function SpecMetric({ label, value, icon: Icon }: { label: string; value: string; icon: React.ComponentType<{ className?: string }> }) {
-  return (
-    <div className="rounded-[22px] border border-white/10 bg-[rgba(10,16,27,0.9)] px-4 py-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-accent" />
-        <p className="text-[10px] uppercase tracking-[0.22em] text-muted-fg">{label}</p>
-      </div>
-      <p className="mt-3 text-lg font-semibold text-fg">{value}</p>
-    </div>
-  );
+function SkillForm({ inputs, values, onChange }: { inputs: SpecialistInput[]; values: Values; onChange: (name: string, value: string) => void }) {
+  if (!inputs.length) return null;
+  return <div className="grid gap-4 md:grid-cols-2">{inputs.map((input) => {
+    const value = values[input.name] ?? (input.default == null ? "" : String(input.default));
+    const csv = input.kind === "rows";
+    const list = input.kind === "list";
+    if (input.kind === "object") return <p key={input.name} className="md:col-span-2 text-xs text-muted-fg">{humanize(input.name)} is optional and is produced by the preceding specialist result.</p>;
+    return <label key={input.name} className={csv || input.name === "text" || list ? "space-y-2 md:col-span-2" : "space-y-2"}><span className="text-xs font-medium text-fg">{humanize(input.name)}{input.required ? " *" : ""}</span>{input.kind === "boolean" ? <select value={value || "false"} onChange={(event) => onChange(input.name, event.target.value)} className="h-11 w-full rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] px-4 text-sm text-fg"><option value="false">No</option><option value="true">Yes</option></select> : csv || input.name === "text" || list ? <Textarea value={value} onChange={(event) => onChange(input.name, event.target.value)} placeholder={csv ? "region,revenue\nNorth,420\nSouth,280" : list ? "One value per line or comma-separated" : `Enter ${humanize(input.name).toLowerCase()}`} /> : <Input type={input.kind === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(input.name, event.target.value)} />}{csv && <span className="block text-xs text-muted-fg">Paste CSV: the first row is column names. This becomes the data table for the specialist.</span>}</label>;
+  })}</div>;
 }
 
-function SpecialistList({ specialists, isLoading, error, selectedId, onSelect }: {
-  specialists: SpecialistInfo[]; isLoading: boolean; error: string | null; selectedId: string | null; onSelect: (id: string) => void;
-}) {
-  return (
-    <Card>
-      <CardHeader><CardTitle>Available Specialists</CardTitle><CardDescription>Select a specialist</CardDescription></CardHeader>
-      <CardContent className="space-y-3">
-        {isLoading ? (
-          <p className="text-sm text-muted-fg">Loading...</p>
-        ) : error ? (
-          <div className="rounded-[20px] border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-400">
-            Could not load specialists: {error}
-          </div>
-        ) : specialists.length ? (
-          specialists.map((spec) => (
-            <button key={spec.id} onClick={() => onSelect(spec.id)}
-              className={`w-full rounded-[24px] border px-4 py-4 text-left transition ${selectedId === spec.id ? "border-white/16 bg-white/10" : "border-white/10 bg-[rgba(10,16,27,0.9)] hover:border-white/14 hover:bg-white/8"}`}
-            >
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-fg">{spec.name}</p>
-                <Badge className={spec.available ? "border-success/40 bg-success/10 text-success" : "border-white/10 bg-white/6 text-fg/60"}>
-                  {spec.available ? "Ready" : "Offline"}
-                </Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-fg line-clamp-2">{spec.description}</p>
-            </button>
-          ))
-        ) : (
-          <div className="rounded-[24px] border border-dashed border-white/12 bg-[rgba(10,16,27,0.7)] px-4 py-10 text-center text-sm text-muted-fg">No specialists available.</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SpecialistDetail({ selected, skillParams, onParamsChange, onInvoke, invoking, error, result }: {
-  selected: SpecialistInfo | null; skillParams: string; onParamsChange: (v: string) => void;
-  onInvoke: (skill: string) => void; invoking: boolean; error: string | null; result: unknown;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{selected ? selected.name : "Specialist Details"}</CardTitle>
-        <CardDescription>{selected ? selected.description : "Select a specialist to view its skills"}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {selected ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {selected.capabilities.map((cap) => (<Badge key={cap} className="border-white/10 bg-white/6 text-fg/80">{cap}</Badge>))}
-            </div>
-            <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-fg">Invoke a skill</p>
-              {selected.direct_invocation && selected.skills?.length ? (
-                <>
-                  <Input value={skillParams} onChange={(e) => onParamsChange(e.target.value)} placeholder='{"text": "sample"}' className="font-mono text-xs" />
-                  <div className="flex flex-wrap gap-2">
-                    {selected.skills.map((skill) => (
-                      <Button key={skill} variant="outline" size="sm" onClick={() => onInvoke(skill)} disabled={invoking || !selected.available}>
-                        {invoking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}{skill}
-                      </Button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-muted-fg">
-                  This specialist runs automatically as part of the analysis workflow and is not exposed as a standalone action.
-                </p>
-              )}
-            </div>
-            {error && <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
-            {result !== null && (
-              <div className="rounded-[20px] border border-white/10 bg-[rgba(9,15,25,0.9)] p-4">
-                <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-fg">Result</p>
-                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-fg/90">
-                  {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
-                </pre>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="rounded-[24px] border border-dashed border-white/12 bg-[rgba(10,16,27,0.7)] px-4 py-10 text-center text-sm text-muted-fg">Select a specialist.</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+function SpecialistList({ specialists, selectedId, loading, error, onSelect }: { specialists: SpecialistInfo[]; selectedId: string | null; loading: boolean; error: string | null; onSelect: (id: string) => void }) { return <Card><CardHeader><CardTitle>Available specialists</CardTitle><CardDescription>Select a specialist</CardDescription></CardHeader><CardContent className="space-y-3">{loading ? <p className="text-sm text-muted-fg">Loading...</p> : error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">Could not load specialists: {error}</p> : specialists.map((item) => <button key={item.id} onClick={() => onSelect(item.id)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedId === item.id ? "border-white/20 bg-white/10" : "border-white/10 bg-white/[0.025] hover:bg-white/5"}`}><div className="flex items-center justify-between gap-2"><p className="font-medium text-fg">{item.name}</p><Badge className={item.available ? "border-success/40 bg-success/10 text-success" : "border-white/10 bg-white/6 text-fg/60"}>{item.available ? "Ready" : "Offline"}</Badge></div><p className="mt-1 text-xs text-muted-fg line-clamp-2">{item.description}</p></button>)}</CardContent></Card>; }
+function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: React.ComponentType<{ className?: string }> }) { return <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-accent"/><span className="text-[10px] uppercase tracking-[0.2em] text-muted-fg">{label}</span></div><p className="mt-2 text-sm font-semibold text-fg">{value}</p></div>; }
+function Result({ value }: { value: unknown }) { return <pre className="overflow-x-auto rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] p-4 text-xs leading-5 text-fg/90">{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</pre>; }
+function Empty({ children }: { children: React.ReactNode }) { return <div className="rounded-2xl border border-dashed border-white/12 px-4 py-10 text-center text-sm text-muted-fg">{children}</div>; }

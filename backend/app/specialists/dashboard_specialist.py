@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.registry import skill
+from app.tools.chart_recommender import recommend_chart
 
 
 def _rule_narrative(rows: list[Any], columns: list[str], title: str = "") -> str:
@@ -134,12 +135,13 @@ class DashboardSpecialist:
 
             rows = result.get("rows", [])
             columns = result.get("columns", [])
-            chart_spec = result.get("chart_spec")
             task_desc = result.get("task_description", "")
             task_id = result.get("task_id", "")
 
             if not rows:
                 continue
+
+            chart_spec = result.get("chart_spec") or recommend_chart(columns, rows, task_desc)
 
             narrative = _rule_narrative(rows, columns, title=task_desc)
             panel_title = _infer_panel_title(task_desc)

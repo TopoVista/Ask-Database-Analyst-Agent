@@ -9,6 +9,8 @@ An autonomous decision intelligence platform that turns plain-English business q
 - statistical analysis and anomaly detection
 - hypothesis validation
 - human-readable insight synthesis
+- deterministic chart recommendations and multi-panel visual dashboards
+- direct specialist forms for text, lists, numeric inputs, and CSV table data (no JSON required)
 
 The repo is structured as a monorepo with:
 
@@ -50,6 +52,7 @@ Frontend env notes:
 - SQLite is supported for local development only. Set `DATABASE_URL` to a managed PostgreSQL URL in Render; the application refuses to start in production with SQLite, preventing accidental loss of users, connections, and history on Render's ephemeral filesystem.
 - Dataset uploads are temporary working files stored under `/tmp`; they are intentionally not advertised as durable storage and will be unavailable after a Render restart. Use a connected database for durable analysis.
 - To use OpenAI-backed agents, set `OPENAI_API_KEY` in `backend/.env`. The backend already prefers OpenAI automatically when that key is present.
+- Core chart selection, dashboard assembly, simulation, evaluation, and specialist execution are deterministic and do not require OpenAI. This keeps API use focused on tasks where generated reasoning adds value.
 - For Neon connections, keep `ssl_mode=require` and use the database password from Neon connection details. The app now validates credentials before saving a connection.
 
 ## Deployment
@@ -59,6 +62,8 @@ Architecture: browser → Vercel Next.js `/api/*` proxy → Render FastAPI → m
 ### Render
 
 Create a web service from `render.yaml`. Set `DATABASE_URL` to the managed PostgreSQL connection URL and `OPENAI_API_KEY` if OpenAI-backed responses are required. Set `ALLOWED_ORIGINS` to your local and production frontend origins. The container respects Render's `PORT`, uses one Uvicorn worker, and uses a conservative primary-database pool (2 connections plus one overflow). `GET /health` is a lightweight liveness check.
+
+The same managed PostgreSQL database stores application state, session history, and durable RAG chunks. No Redis, Chroma, worker service, or additional Render service is required.
 
 Run migrations as a one-off release/manual command before the first deploy:
 
