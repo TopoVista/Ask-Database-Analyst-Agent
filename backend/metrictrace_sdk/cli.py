@@ -23,7 +23,7 @@ from metrictrace_sdk.local_replay import (
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, markdown_report, verify_report
+from metrictrace_sdk.reporting import create_report, markdown_report, reproduce_report, verify_report
 
 EXIT_OK, EXIT_USAGE, EXIT_REMOTE, EXIT_POLICY, EXIT_RESOURCE, EXIT_EXECUTION = range(6)
 
@@ -231,6 +231,11 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-report", help="Verify report integrity and numerical reconciliation"
     )
     verify.add_argument("--report", required=True)
+    reproduce = sub.add_parser(
+        "reproduce-report", help="Re-execute authorized local evidence for a supplied replay report"
+    )
+    reproduce.add_argument("--report", required=True)
+    _add_local_options(reproduce)
     remote = sub.add_parser(
         "replay", help="Submit a replay to an authenticated MetricTrace Platform"
     )
@@ -333,6 +338,19 @@ def main(argv: list[str] | None = None) -> int:
                 {"ok": verdict["valid"], "verification": verdict},
                 EXIT_OK if verdict["valid"] else EXIT_EXECUTION,
             )
+        if args.command == "reproduce-report":
+            report = json.loads(Path(args.report).read_text(encoding="utf-8"))
+            verdict = reproduce_report(
+                report,
+                _manifest(args.old_manifest, args.old_dataset, "old"),
+                _manifest(args.new_manifest, args.new_dataset, "new"),
+                _read_sql(args.old_sql, args.old_sql_file, "old"),
+                _read_sql(args.new_sql, args.new_sql_file, "new"),
+                limits=_limits(args),
+                parameters=_parameters(args.parameters),
+            )
+            reproduced = verdict["reexecution"]["status"] == "REPRODUCED"
+            return _emit({"ok": reproduced, "reproduction": verdict}, EXIT_OK if reproduced else EXIT_EXECUTION)
         if args.command == "demo":
             with ExitStack() as stack:
                 root = files("metrictrace_sdk.examples")

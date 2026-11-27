@@ -18,6 +18,7 @@ def test_first_commercial_expansion_skills_have_valid_metadata_and_shared_engine
         "dataset-diff-inspector": "dataset-diff",
         "sql-join-auditor": "join-audit",
         "data-lineage-inspector": "lineage-inspect",
+        "decision-evidence-verifier": "reproduce-report",
     }
 
     for skill_name, command in expected.items():
