@@ -38,3 +38,11 @@ class CaptureRead(BaseModel):
     row_count: int
     byte_size: int
     manifest_uri: str
+
+
+class StaticLineageRequest(BaseModel):
+    """A text-only, workspace-authorized static SQL inspection request."""
+
+    workspace_id: str
+    sql: str = Field(min_length=1, max_length=100_000)
+    tables: list[str] = Field(min_length=1, max_length=64)

@@ -11,11 +11,31 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import ReplayCell, ReplayJob
-from app.schemas.metrictrace import PostgresSourceCreate, ReplayRequest
+from app.schemas.metrictrace import PostgresSourceCreate, ReplayRequest, StaticLineageRequest
+from metrictrace_sdk.lineage import LineageError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
+
+
+@router.post("/lineage/inspect")
+async def inspect_static_lineage(
+    request: StaticLineageRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Inspect static SQL dependencies using the SDK implementation after workspace isolation."""
+    user = await ensure_user(db, current_user)
+    try:
+        lineage = await MetricTraceService(db).inspect_static_lineage(
+            user, UUID(request.workspace_id), request.sql, request.tables
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (LineageError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"lineage": lineage}
 
 
 @router.post("/sources/postgresql", status_code=status.HTTP_201_CREATED)

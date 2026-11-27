@@ -39,6 +39,7 @@ from app.models.connection import DBConnection
 from app.services.job_queue import DurableJobQueue
 from app.models.user import User
 from app.tools.sql_validator import validate_sql
+from metrictrace_sdk.lineage import inspect_sql_lineage
 
 
 class MetricTraceService:
@@ -70,6 +71,17 @@ class MetricTraceService:
         if not workspace:
             raise LookupError("Workspace not found")
         return workspace
+
+    async def inspect_static_lineage(
+        self, user: User, workspace_id: UUID, sql: str, allowed_tables: list[str]
+    ) -> dict[str, Any]:
+        """Run shared static analysis only after tenant-scoped workspace authorization.
+
+        The request contains SQL text and a declared logical allow-list only;
+        it neither reads datasets nor discloses other workspace metadata.
+        """
+        await self._owned_workspace(user, workspace_id)
+        return inspect_sql_lineage(sql, allowed_tables)
 
     async def capture_records(
         self,
