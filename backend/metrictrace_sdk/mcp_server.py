@@ -14,7 +14,11 @@ from metrictrace_sdk.contracts import ContractError, evaluate_contracts
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import RegressionError
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
-from metrictrace_sdk.lineage import LineageError, inspect_sql_lineage as inspect_static_lineage
+from metrictrace_sdk.lineage import (
+    LineageError,
+    compare_sql_lineage,
+    inspect_sql_lineage as inspect_static_lineage,
+)
 from metrictrace_sdk.local_replay import (
     LocalReplayError,
     LocalReplayLimits,
@@ -210,6 +214,19 @@ def build_server():
             return {"ok": True, "lineage": inspect_static_lineage(sql, allowed_tables)}
         except (LineageError, ValueError) as exc:
             return {"ok": False, "error": {"code": "lineage_inspection_rejected", "message": str(exc)}}
+
+    @server.tool()
+    def compare_metric_definitions(
+        baseline_sql: str, candidate_sql: str, allowed_tables: list[str]
+    ) -> dict:
+        """Compare static dependencies and output surface of two authorized metric SQL definitions."""
+        try:
+            return {
+                "ok": True,
+                "comparison": compare_sql_lineage(baseline_sql, candidate_sql, allowed_tables),
+            }
+        except (LineageError, ValueError) as exc:
+            return {"ok": False, "error": {"code": "definition_comparison_rejected", "message": str(exc)}}
 
     @server.tool()
     def inspect_lineage(workspace_id: str, sql: str, allowed_tables: list[str]) -> dict:
