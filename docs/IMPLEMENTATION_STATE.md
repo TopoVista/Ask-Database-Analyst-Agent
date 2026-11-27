@@ -29,10 +29,10 @@ licenses and notices remain unchanged.
 | PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration now queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. The real MVCC test is environment-gated because no PostgreSQL server is available. Scheduled capture is not implemented. |
 | Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. Metadata-aware orphan retention/cleanup and live MinIO verification are still unimplemented. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
-| Dataset diff | PARTIAL | Shared Lite engine now compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. Platform API/UI, historical-snapshot input and the distributable skill remain unimplemented. |
+| Dataset diff | PARTIAL | Shared Lite engine now compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The `dataset-diff-inspector` skill now documents the shared CLI and passes SKILL validation. Platform API/UI, historical-snapshot input and a tested marketplace ZIP remain unimplemented. |
 | Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The `metric-contract-guardian` commercial skill now invokes this engine and passes SKILL validation. Platform persistence/UI and a release ZIP remain unimplemented. |
 | SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The `metric-regression-investigator` commercial skill now invokes this engine and passes SKILL validation. Platform shadow runs, promotion gates, persisted contracts and a release ZIP remain unimplemented. |
-| Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. Platform API/UI and a distributable skill remain unimplemented. |
+| Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The `sql-join-auditor` skill now documents the shared CLI and passes SKILL validation. Platform API/UI and a tested marketplace ZIP remain unimplemented. |
 
 ## Validation baseline
 
@@ -51,12 +51,11 @@ Validation after the PostgreSQL capture change:
   and test modules: passed.
 - Fresh SQLite Alembic upgrade through revision `008_add_postgres_capture_sources`: passed.
 
-## Working-tree note
+## Delivery note
 
-The current branch is `codex/metrictrace-foundations`. The initial replay
-foundation commit (`78a375e`) is pushed; later Phase 2 and commercial-release
-work is intentionally uncommitted and must be preserved. No later work has
-been pushed, deployed, published, submitted, or monetized.
+The current branch is `codex/metrictrace-foundations`. The Phase 2 and
+commercial-release work through commit `a488b25` is pushed to its origin
+branch. No work has been deployed, published, submitted, or monetized.
 
 ## Exact next executable task
 
