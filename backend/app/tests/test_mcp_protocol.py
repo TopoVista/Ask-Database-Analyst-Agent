@@ -41,6 +41,7 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
                 "check_local_sql_regression",
                 "audit_local_sql_joins",
                 "inspect_dataset",
+                "inspect_sql_lineage",
                 "run_local_metric_replay",
                 "validate_metric_sql",
                 "verify_replay_report",
@@ -53,6 +54,11 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
                 "validate_metric_sql", {"sql": "SELECT * FROM read_csv_auto('secret.csv')"}
             )
             assert "invalid_sql" in _content(invalid_sql)
+            lineage = await session.call_tool(
+                "inspect_sql_lineage",
+                {"sql": "SELECT SUM(amount) AS total FROM source_data", "allowed_tables": ["source_data"]},
+            )
+            assert json.loads(_content(lineage))["lineage"]["source_tables"] == ["source_data"]
             replay = await session.call_tool(
                 "run_local_metric_replay",
                 {

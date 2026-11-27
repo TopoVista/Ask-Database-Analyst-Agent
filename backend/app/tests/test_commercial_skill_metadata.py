@@ -17,6 +17,7 @@ def test_first_commercial_expansion_skills_have_valid_metadata_and_shared_engine
     expected = {
         "dataset-diff-inspector": "dataset-diff",
         "sql-join-auditor": "join-audit",
+        "data-lineage-inspector": "lineage-inspect",
     }
 
     for skill_name, command in expected.items():

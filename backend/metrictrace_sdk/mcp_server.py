@@ -14,6 +14,7 @@ from metrictrace_sdk.contracts import ContractError, evaluate_contracts
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import RegressionError
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
+from metrictrace_sdk.lineage import LineageError, inspect_sql_lineage as inspect_lineage
 from metrictrace_sdk.local_replay import (
     LocalReplayError,
     LocalReplayLimits,
@@ -188,6 +189,14 @@ def build_server():
             return {"ok": True, "audit": audit_sql_joins(datasets, sql, allowed_roots=_authorized_roots())}
         except (JoinAuditError, PermissionError, ValueError) as exc:
             return {"ok": False, "error": {"code": "join_audit_rejected", "message": str(exc)}}
+
+    @server.tool()
+    def inspect_sql_lineage(sql: str, allowed_tables: list[str]) -> dict:
+        """Inspect static dependencies and output columns of authorized read-only metric SQL."""
+        try:
+            return {"ok": True, "lineage": inspect_lineage(sql, allowed_tables)}
+        except (LineageError, ValueError) as exc:
+            return {"ok": False, "error": {"code": "lineage_inspection_rejected", "message": str(exc)}}
 
     @server.tool()
     def run_local_metric_replay(
