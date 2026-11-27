@@ -19,11 +19,14 @@ exposes only `run_four_way_replay`, because it maps to a real underlying API.
 State-changing use requires both an API token and explicit mutation enablement.
 No placeholder MCP tools are shipped.
 
-The `skills/` tree is an Agensi-compatible skill pack. Create a local ZIP with
-`python skills/package_release.py`. As of 2026-11-27, Agensi accepts packs of
-2–50 skills with `SKILL.md` frontmatter and performs security scans; consult
-their current packaging documentation before any submission. No submission is
-performed by this repository.
+The `skills/` tree is a local, portable skill source tree. It is not evidence
+of Agensi compatibility or approval. Agensi requirements were rechecked on
+2026-11-28 and are recorded in
+`release/agensi/MARKETPLACE_RECHECK_2026-11-28.md`; its current seller flow
+uses creator-submitted ZIPs, security scanning and manual review. The frozen
+Historical Metric Debugger 0.1.0 archive has a documented release gate and
+must not be submitted unchanged. No submission is performed by this
+repository.
 
 ## Local historical debugger
 

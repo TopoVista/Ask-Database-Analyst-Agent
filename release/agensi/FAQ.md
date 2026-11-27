@@ -14,8 +14,13 @@ It proves the reported four computations and numerical reconciliation for the su
 
 ## What do I install?
 
-`pip install metrictrace-lite` from the reviewed local wheel, then use `metrictrace --help`. Python 3.11+ is currently tested on Windows; Linux installation is supported by packaging but has not yet been exercised in this workspace.
+This marketplace skill can run only when the connected agent host permits local
+Python execution and its user authorizes the required dependencies:
+Python 3.11+, DuckDB 1.1.3, and SQLGlot 25.31.4. It must report an unsupported
+host or unavailable dependencies rather than installing packages without
+authorization. Windows/Python 3.11 is the only validated environment.
 
 ## Can it run an MCP server?
 
-Install the optional `mcp` dependency and configure `METRICTRACE_ALLOWED_DATA_DIRS`. The server exposes only local inspection, validation, replay, and report verification.
+No. This marketplace listing covers the single local replay workflow only and
+does not promise MCP support.
