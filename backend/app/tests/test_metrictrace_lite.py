@@ -37,6 +37,10 @@ def test_lite_multi_table_replay_and_report_integrity(tmp_path):
         "new_data_new_definition": "80",
     }
     report = create_report(old, new, old_sql, new_sql, replay, limits)
+    receipt = report["decision_receipt"]
+    assert receipt["scope"] == "local_file_replay"
+    assert receipt["dataset_version_identifiers"] is None
+    assert receipt["compiler"]["name"] == "sqlglot"
     assert verify_report(report)["valid"] is True
     tampered = json.loads(json.dumps(report))
     tampered["replay"]["cells"]["new_data_new_definition"] = "81"

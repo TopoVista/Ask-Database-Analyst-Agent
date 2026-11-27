@@ -19,6 +19,7 @@ from metrictrace_sdk.local_replay import (
 )
 
 REPORT_SCHEMA_VERSION = "1.0"
+DECISION_RECEIPT_SCHEMA_VERSION = "1.0"
 
 
 def _canonical(value: object) -> bytes:
@@ -65,17 +66,25 @@ def create_report(
 
     old_schema = inspect_datasets(old_datasets, limits)
     new_schema = inspect_datasets(new_datasets, limits)
+    import sqlglot
+
+    dataset_evidence = {
+        "old_datasets": dataset_identities(old_datasets, limits),
+        "new_datasets": dataset_identities(new_datasets, limits),
+    }
+    definition_evidence = {
+        "old_sql_sha256": hashlib.sha256(old_sql.encode("utf-8")).hexdigest(),
+        "new_sql_sha256": hashlib.sha256(new_sql.encode("utf-8")).hexdigest(),
+        "parameters": parameters or {},
+    }
     report = {
         "report_schema_version": REPORT_SCHEMA_VERSION,
         "metrictrace_version": __version__,
         "duckdb_version": duckdb.__version__,
         "created_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "inputs": {
-            "old_datasets": dataset_identities(old_datasets, limits),
-            "new_datasets": dataset_identities(new_datasets, limits),
-            "old_sql_sha256": hashlib.sha256(old_sql.encode("utf-8")).hexdigest(),
-            "new_sql_sha256": hashlib.sha256(new_sql.encode("utf-8")).hexdigest(),
-            "parameters": parameters or {},
+            **dataset_evidence,
+            **definition_evidence,
         },
         "schemas": {
             "old": old_schema,
@@ -93,6 +102,19 @@ def create_report(
             },
             "warnings": [
                 "Integrity confirms report contents, not author identity or re-execution against source files."
+            ],
+        },
+        "decision_receipt": {
+            "schema_version": DECISION_RECEIPT_SCHEMA_VERSION,
+            "scope": "local_file_replay",
+            "dataset_version_identifiers": None,
+            "evidence": {**dataset_evidence, **definition_evidence},
+            "execution_engine": {"metrictrace_version": __version__, "duckdb_version": duckdb.__version__},
+            "compiler": {"name": "sqlglot", "version": sqlglot.__version__, "dialect": "duckdb"},
+            "contract_outcomes": None,
+            "limitations": [
+                "Local file replay has no persisted platform dataset-version identifiers.",
+                "Contract outcomes are absent unless a separate contract evaluation is attached by the caller.",
             ],
         },
     }

@@ -1,6 +1,6 @@
 # MetricTrace implementation state
 
-Last updated: 2026-11-27
+Last updated: 2026-11-28
 
 This file records observed, reproducible status. It is not a release claim.
 
@@ -27,14 +27,14 @@ licenses and notices remain unchanged.
 | Lite local replay, CLI, SDK and MCP | COMPLETE | Existing 0.1.0 artifacts were locally validated before this roadmap continuation. |
 | Four-way replay queue foundation | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. PostgreSQL multi-worker experiments have not run. |
 | PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration now queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. The real MVCC test is environment-gated because no PostgreSQL server is available. Scheduled capture is not implemented. |
-| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. Metadata-aware orphan retention/cleanup and live MinIO verification are still unimplemented. |
+| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
 | Dataset diff | PARTIAL | Shared Lite engine now compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The `dataset-diff-inspector` skill now documents the shared CLI and passes SKILL validation. Platform API/UI, historical-snapshot input and a tested marketplace ZIP remain unimplemented. |
 | Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The `metric-contract-guardian` commercial skill now invokes this engine and passes SKILL validation. Platform persistence/UI and a release ZIP remain unimplemented. |
 | SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The `metric-regression-investigator` commercial skill now invokes this engine and passes SKILL validation. Platform shadow runs, promotion gates, persisted contracts and a release ZIP remain unimplemented. |
 | Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The `sql-join-auditor` skill now documents the shared CLI and passes SKILL validation. Platform API/UI and a tested marketplace ZIP remain unimplemented. |
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. This is not persisted platform lineage, database-catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
-| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. The shared verifier now also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. Platform receipt persistence, dataset-version identifiers, contract outcomes, signing, retention state, and remote re-execution remain unimplemented. |
+| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. Platform receipt persistence, dataset-version identifiers, contract outcomes, signing, retention state, and remote re-execution remain unimplemented. |
 
 ## Validation baseline
 
@@ -52,16 +52,19 @@ Validation after the PostgreSQL capture change:
 - Scoped Ruff over the changed capture, storage, service, API, schema, model
   and test modules: passed.
 - Fresh SQLite Alembic upgrade through revision `008_add_postgres_capture_sources`: passed.
+- Focused local-report/receipt tests: `10 passed, 1 skipped`; scoped Ruff for
+  the receipt changes: passed. The skip remains the Windows symlink-permission
+  case.
 
 ## Delivery note
 
-The current branch is `codex/metrictrace-foundations`. The Phase 2 and
-commercial-release work through commit `a488b25` is pushed to its origin
-branch. No work has been deployed, published, submitted, or monetized.
+The current branch is `codex/metrictrace-foundations`. Validated work is
+pushed to its origin branch. No work has been deployed, published, submitted,
+or monetized.
 
 ## Exact next executable task
 
 Run the environment-gated PostgreSQL MVCC test against a disposable instance
-(`METRICTRACE_TEST_POSTGRES_URL`), then add metadata-aware stale-attempt
-cleanup and PostgreSQL multi-worker failure experiments (claim contention,
-lease expiry, stale publication rejection and worker termination). 
+(`METRICTRACE_TEST_POSTGRES_URL`), then run PostgreSQL multi-worker failure
+experiments (claim contention, lease expiry, stale publication rejection and
+worker termination).
