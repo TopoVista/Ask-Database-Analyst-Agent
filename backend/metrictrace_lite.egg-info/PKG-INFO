@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: metrictrace-lite
-Version: 0.2.0rc1
+Version: 0.2.0rc2
 Summary: Typed SDK and CLI for deterministic MetricTrace reliability checks
 License-Expression: MIT
 Keywords: data-quality,metrics,replay,sql

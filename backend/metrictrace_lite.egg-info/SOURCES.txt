@@ -15,6 +15,7 @@ metrictrace_sdk/contracts.py
 metrictrace_sdk/core.py
 metrictrace_sdk/dataset_diff.py
 metrictrace_sdk/join_audit.py
+metrictrace_sdk/lineage.py
 metrictrace_sdk/local_replay.py
 metrictrace_sdk/mcp_server.py
 metrictrace_sdk/mcp_worker.py

@@ -1,6 +1,6 @@
 """MetricTrace Lite: deterministic local replay with optional remote integration."""
 
-__version__ = "0.2.0rc1"
+__version__ = "0.2.0rc2"
 
 from metrictrace_sdk.core import four_way_attribution, validate_metric_sql
 from metrictrace_sdk.local_replay import LocalReplayError, LocalReplayLimits, run_local_four_way
