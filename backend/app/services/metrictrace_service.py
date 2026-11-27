@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -82,6 +82,33 @@ class MetricTraceService:
         """
         await self._owned_workspace(user, workspace_id)
         return inspect_sql_lineage(sql, allowed_tables)
+
+    async def cleanup_stale_snapshot_attempts(
+        self, workspace_id: UUID, retention_seconds: int
+    ) -> dict[str, int]:
+        """Remove only old, unreferenced capture attempts in one workspace.
+
+        This is intentionally a maintenance primitive, not a public endpoint:
+        callers must schedule it under their own operational authorization.
+        """
+        if retention_seconds < 60:
+            raise ValueError("Snapshot attempt retention must be at least 60 seconds.")
+        store = snapshot_store_from_settings(get_settings())
+        referenced = {
+            version.manifest_uri.rsplit("/", 1)[0]
+            for version in (await self.db.execute(
+                select(DatasetVersion).join(MetricSource).where(MetricSource.workspace_id == workspace_id)
+            )).scalars()
+        }
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=retention_seconds)
+        deleted = retained = 0
+        for attempt in store.list_attempts(workspace_id):
+            if attempt.prefix in referenced or attempt.modified_at > cutoff:
+                retained += 1
+                continue
+            store.delete_attempt(workspace_id, attempt.prefix)
+            deleted += 1
+        return {"deleted_attempts": deleted, "retained_attempts": retained}
 
     async def capture_records(
         self,

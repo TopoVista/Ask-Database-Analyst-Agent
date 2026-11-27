@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 from uuid import UUID
@@ -18,6 +19,12 @@ class ObjectMetadata:
     sha256: str
 
 
+@dataclass(frozen=True)
+class AttemptMetadata:
+    prefix: str
+    modified_at: datetime
+
+
 class SnapshotStore(Protocol):
     def put(self, workspace_id: UUID, key: str, body: bytes) -> ObjectMetadata: ...
     def put_file(self, workspace_id: UUID, key: str, path: Path) -> ObjectMetadata: ...
@@ -26,6 +33,8 @@ class SnapshotStore(Protocol):
     def inspect(self, workspace_id: UUID, key: str) -> ObjectMetadata: ...
     def verify(self, workspace_id: UUID, key: str, expected_sha256: str) -> bool: ...
     def delete_staging(self, workspace_id: UUID, prefix: str) -> int: ...
+    def list_attempts(self, workspace_id: UUID) -> list[AttemptMetadata]: ...
+    def delete_attempt(self, workspace_id: UUID, prefix: str) -> int: ...
 
 
 def canonical_key(workspace_id: UUID, key: str) -> str:
@@ -34,6 +43,15 @@ def canonical_key(workspace_id: UUID, key: str) -> str:
     if not normalized.startswith(prefix) or ".." in normalized.split("/"):
         raise ValueError("Storage key is outside the workspace namespace.")
     return normalized
+
+
+def _attempt_prefix(workspace_id: UUID, prefix: str) -> str:
+    key = canonical_key(workspace_id, prefix).rstrip("/")
+    parts = key.split("/")
+    if len(parts) != 4 or parts[:3] != ["workspaces", str(workspace_id), "a"]:
+        raise ValueError("Only an exact generated capture-attempt prefix may be deleted.")
+    UUID(parts[3])
+    return key
 
 
 class LocalSnapshotStore:
@@ -109,6 +127,29 @@ class LocalSnapshotStore:
         shutil.rmtree(path)
         return 1
 
+    def list_attempts(self, workspace_id: UUID) -> list[AttemptMetadata]:
+        root = self._path(workspace_id, f"workspaces/{workspace_id}/a")
+        if not root.is_dir():
+            return []
+        attempts = []
+        for directory in root.iterdir():
+            if not directory.is_dir():
+                continue
+            try:
+                prefix = _attempt_prefix(workspace_id, f"workspaces/{workspace_id}/a/{directory.name}")
+            except (ValueError, TypeError):
+                continue
+            attempts.append(AttemptMetadata(prefix, datetime.fromtimestamp(directory.stat().st_mtime, timezone.utc)))
+        return sorted(attempts, key=lambda item: item.prefix)
+
+    def delete_attempt(self, workspace_id: UUID, prefix: str) -> int:
+        path = self._path(workspace_id, _attempt_prefix(workspace_id, prefix))
+        if not path.exists():
+            return 0
+        import shutil
+        shutil.rmtree(path)
+        return 1
+
     def read_manifest(self, workspace_id: UUID, key: str) -> dict:
         return json.loads(self.read(workspace_id, key))
 
@@ -180,6 +221,31 @@ class S3SnapshotStore:
         keys = [{"Key": item["Key"]} for item in response.get("Contents", [])]
         if keys:
             self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True})
+        return len(keys)
+
+    def list_attempts(self, workspace_id: UUID) -> list[AttemptMetadata]:
+        root = canonical_key(workspace_id, f"workspaces/{workspace_id}/a/")
+        attempts: dict[str, datetime] = {}
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=root):
+            for item in page.get("Contents", []):
+                suffix = item["Key"].removeprefix(root).split("/", 1)[0]
+                try:
+                    prefix = _attempt_prefix(workspace_id, root + suffix)
+                except ValueError:
+                    continue
+                modified = item["LastModified"]
+                attempts[prefix] = max(attempts.get(prefix, modified), modified)
+        return [AttemptMetadata(prefix, modified) for prefix, modified in sorted(attempts.items())]
+
+    def delete_attempt(self, workspace_id: UUID, prefix: str) -> int:
+        prefix = _attempt_prefix(workspace_id, prefix) + "/"
+        keys = []
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            keys.extend({"Key": item["Key"]} for item in page.get("Contents", []))
+        for offset in range(0, len(keys), 1000):
+            self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys[offset:offset + 1000], "Quiet": True})
         return len(keys)
 
     def read_manifest(self, workspace_id: UUID, key: str) -> dict:

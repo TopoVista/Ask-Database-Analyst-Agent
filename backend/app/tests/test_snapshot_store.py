@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from uuid import uuid4
+from datetime import datetime, timezone
 
 import pytest
 
@@ -31,3 +32,18 @@ def test_local_store_only_cleans_staging(tmp_path):
     assert store.delete_staging(workspace, f"workspaces/{workspace}/sources/source/versions/.staging-1") == 1
     with pytest.raises(ValueError):
         store.delete_staging(workspace, f"workspaces/{workspace}/sources/source/versions/ready")
+
+
+def test_local_store_lists_and_deletes_only_exact_generated_attempts(tmp_path):
+    workspace, attempt = uuid4(), uuid4()
+    store = LocalSnapshotStore(str(tmp_path))
+    prefix = f"workspaces/{workspace}/a/{attempt}"
+    store.put(workspace, f"{prefix}/manifest.json", b"{}")
+
+    attempts = store.list_attempts(workspace)
+    assert [item.prefix for item in attempts] == [prefix]
+    assert attempts[0].modified_at <= datetime.now(timezone.utc)
+    assert store.delete_attempt(workspace, prefix) == 1
+    assert store.list_attempts(workspace) == []
+    with pytest.raises(ValueError):
+        store.delete_attempt(workspace, f"workspaces/{workspace}/a/not-a-uuid")
