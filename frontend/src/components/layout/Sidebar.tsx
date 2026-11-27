@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3 } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/connections", label: "Connections", icon: Database },
   { href: "/schema", label: "Schema", icon: Sigma },
   { href: "/datasets", label: "Datasets", icon: FileSpreadsheet },
+  { href: "/replay", label: "Replay Lab", icon: GitCompareArrows },
   { href: "/simulation", label: "Simulation", icon: FlaskConical },
   { href: "/specialists", label: "Specialists", icon: Brain },
   { href: "/evaluation", label: "Evaluation", icon: BarChart3 },
@@ -23,6 +24,7 @@ const NAV_COPY: Record<string, string> = {
   "/connections": "Manage database access",
   "/schema": "Inspect connected tables",
   "/datasets": "Upload and profile data",
+  "/replay": "Reconstruct historical metrics",
   "/simulation": "What-if scenario analysis",
   "/specialists": "Specialized agent skills",
   "/evaluation": "Benchmarks and audits",
@@ -34,19 +36,19 @@ export function Sidebar() {
   return (
     <aside className="hidden w-80 shrink-0 border-r border-white/10 bg-[rgba(6,10,17,0.76)] px-5 py-6 backdrop-blur-xl lg:block">
       <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(23,31,48,0.96),rgba(11,17,28,0.96))] p-5 shadow-glow">
-        <Badge className="border-accent/20 bg-accent/10 text-accent">Control room</Badge>
-        <h1 className="mt-4 text-[28px] font-semibold leading-[1.1] text-fg">Insight engine for operational decisions</h1>
+        <Badge className="border-accent/20 bg-accent/10 text-accent">MetricTrace</Badge>
+        <h1 className="mt-4 text-[28px] font-semibold leading-[1.1] text-fg">Time travel for business metrics</h1>
         <p className="mt-3 text-sm leading-6 text-fg/70">
-          Connect a warehouse, inspect the schema, and turn broad business questions into traced analytical answers.
+          Reproduce a reported number from immutable inputs, then separate data changes from definition changes.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
             <p className="text-[10px] uppercase tracking-[0.24em] text-muted-fg">Mode</p>
-            <p className="mt-2 text-sm font-medium text-fg">Schema first</p>
+            <p className="mt-2 text-sm font-medium text-fg">Evidence first</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
             <p className="text-[10px] uppercase tracking-[0.24em] text-muted-fg">Output</p>
-            <p className="mt-2 text-sm font-medium text-fg">Traceable insight</p>
+            <p className="mt-2 text-sm font-medium text-fg">Exact replay</p>
           </div>
         </div>
       </div>

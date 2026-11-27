@@ -1,0 +1,140 @@
+"""Tenant-scoped metadata for MetricTrace's reproducible metric runtime.
+
+The data objects themselves live in immutable storage; these rows only point
+to published manifests and preserve the exact inputs of every execution.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Uuid
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.database import Base
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_limit_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=1_073_741_824)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class WorkspaceMember(Base):
+    __tablename__ = "workspace_members"
+    __table_args__ = (UniqueConstraint("workspace_id", "user_id", name="uq_workspace_member"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="owner")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricSource(Base):
+    __tablename__ = "metric_sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="import")
+    capture_status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    capabilities: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class DatasetVersion(Base):
+    __tablename__ = "dataset_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_sources.id", ondelete="CASCADE"), nullable=False)
+    parent_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("dataset_versions.id"))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    manifest_uri: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    consistency_level: Mapped[str] = mapped_column(String(32), nullable=False, default="import")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+
+
+class Metric(Base):
+    __tablename__ = "metrics"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_metric_workspace_name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricDefinition(Base):
+    __tablename__ = "metric_definitions"
+    __table_args__ = (UniqueConstraint("metric_id", "version", name="uq_metric_definition_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    metric_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metrics.id", ondelete="CASCADE"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    sql: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_sql_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    currency: Mapped[str | None] = mapped_column(String(8))
+    unit: Mapped[str] = mapped_column(String(64), nullable=False, default="count")
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricObservation(Base):
+    __tablename__ = "metric_observations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id"), nullable=False)
+    result_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    warnings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ReplayJob(Base):
+    __tablename__ = "replay_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
+    attribution: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReplayCell(Base):
+    __tablename__ = "replay_cells"
+    __table_args__ = (UniqueConstraint("replay_job_id", "label", name="uq_replay_cell_label"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    replay_job_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("replay_jobs.id", ondelete="CASCADE"), nullable=False)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id"), nullable=False)
+    result_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+Index("idx_workspace_members_user", WorkspaceMember.user_id)
+Index("idx_metric_sources_workspace", MetricSource.workspace_id)
+Index("idx_dataset_versions_source_capture", DatasetVersion.source_id, DatasetVersion.captured_at)
+Index("idx_metrics_workspace", Metric.workspace_id)
+Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3 } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/connections", icon: Database, label: "Connections" },
   { href: "/schema", icon: Sigma, label: "Schema" },
   { href: "/datasets", icon: FileSpreadsheet, label: "Datasets" },
+  { href: "/replay", icon: GitCompareArrows, label: "Replay Lab" },
   { href: "/simulation", icon: FlaskConical, label: "Simulation" },
   { href: "/specialists", icon: Brain, label: "Specialists" },
   { href: "/evaluation", icon: BarChart3, label: "Evaluation" },
@@ -25,6 +26,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/connections": "Connection management",
   "/schema": "Schema explorer",
   "/datasets": "Dataset management",
+  "/replay": "Historical Replay Lab",
   "/simulation": "What-if simulation",
   "/specialists": "Specialist agents",
   "/evaluation": "Benchmarks and audits",
@@ -32,15 +34,15 @@ const PAGE_LABELS: Record<string, string> = {
 
 export function Header() {
   const pathname = usePathname();
-  const currentLabel = PAGE_LABELS[pathname] ?? "Decision Intelligence";
+  const currentLabel = PAGE_LABELS[pathname] ?? "MetricTrace";
 
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[rgba(6,10,17,0.82)] px-4 py-4 backdrop-blur-xl md:px-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Badge className="border-accent/20 bg-accent/10 text-accent">Decision Intelligence</Badge>
-            <p className="hidden text-xs text-muted-fg md:block">Schema-first analytical reasoning</p>
+            <Badge className="border-accent/20 bg-accent/10 text-accent">MetricTrace</Badge>
+            <p className="hidden text-xs text-muted-fg md:block">Historical metric evidence</p>
           </div>
           <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">

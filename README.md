@@ -1,6 +1,42 @@
-# Decision Intelligence Agent
+# MetricTrace
 
-An autonomous decision intelligence platform that turns plain-English business questions into a multi-step analytical workflow:
+MetricTrace is a time-travel debugger for business metrics that reproduces
+historical results, separates data changes from metric-definition changes,
+validates business contracts and preserves verifiable evidence behind
+decisions.
+
+This repository is being migrated from the original Decision Intelligence
+Agent. The first MetricTrace vertical slice is real and deterministic: it
+publishes immutable local Parquet snapshots, executes versioned metric SQL in
+DuckDB, runs all four data/definition combinations, and reconciles the change.
+It does not require AI credentials.
+
+## Try the canonical replay
+
+1. Start the backend and frontend below.
+2. Sign in (or use the existing local development auth setup).
+3. Open **Replay Lab** and choose **Run canonical replay**.
+4. Inspect the four execution cells and the data, definition and interaction
+   effects. The fixture shows ₹24 lakh for original Monday data and ₹18 lakh
+   after a corrected marketplace order using the original definition.
+
+Historical storage defaults to `backend/metrictrace-history` for local work.
+Mount durable storage or replace the local adapter before hosting it.
+
+## Implemented MetricTrace capabilities
+
+- tenant-scoped workspace metadata and membership records;
+- immutable Parquet data versions with hash manifests;
+- immutable, versioned metric SQL definitions;
+- SQLGlot read-only validation and DuckDB historical execution;
+- four-way replay with exact per-cell input IDs and symmetric attribution;
+- deterministic replay fixture and an interactive Replay Lab.
+
+See [the product specification](docs/PRODUCT_SPEC.md), [migration plan](docs/MIGRATION_PLAN.md), and [baseline audit](docs/BASELINE_AUDIT.md) for the implementation boundary and next work.
+
+## Existing analysis features
+
+The retained legacy application supports:
 
 - intent classification
 - task planning

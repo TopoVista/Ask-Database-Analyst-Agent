@@ -265,3 +265,30 @@ export async function runNLPBenchmark(token?: string | null) {
     method: "POST",
   });
 }
+
+export interface MetricTraceReplayCell {
+  label: string;
+  result_inr: string | null;
+  status: "completed" | "failed" | "running";
+  error: string | null;
+}
+
+export interface MetricTraceDemoResult {
+  workspace_id: string;
+  replay_id: string;
+  status: string;
+  headline: string;
+  inputs: Record<string, string>;
+  cells: MetricTraceReplayCell[];
+  attribution: {
+    data_effect: string;
+    definition_effect: string;
+    interaction_effect: string;
+    total_change: string;
+    reconciles: boolean;
+  } | null;
+}
+
+export async function runMetricTraceDemo(token?: string | null) {
+  return apiFetch<MetricTraceDemoResult>("/api/v1/metrictrace/demo", token, { method: "POST" });
+}

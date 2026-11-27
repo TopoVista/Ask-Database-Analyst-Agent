@@ -5,7 +5,7 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "lg";
 };
 
-export function Button({ className, variant = "default", size = "md", ...props }: Props) {
+export function Button({ className, variant = "default", size = "md", disabled, ...props }: Props) {
   const base =
     "inline-flex items-center justify-center gap-2 rounded-2xl border text-[13px] font-medium transition-[transform,background-color,border-color,box-shadow,color] duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:translate-y-px disabled:pointer-events-none disabled:opacity-50";
   const variants = {
@@ -21,5 +21,5 @@ export function Button({ className, variant = "default", size = "md", ...props }
     md: "h-11 px-4",
     lg: "h-12 px-5 text-sm",
   };
-  return <button className={cn(base, variants[variant], sizes[size], className)} {...props} />;
+  return <button type="button" disabled={disabled} className={cn(base, variants[variant], sizes[size], className)} {...props} />;
 }

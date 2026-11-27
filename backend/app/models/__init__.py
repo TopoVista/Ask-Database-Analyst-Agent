@@ -6,4 +6,15 @@ from app.models.query_history import QueryHistory
 from app.models.schema_cache import SchemaCache
 from app.models.session import QuerySession
 from app.models.user import User
+from app.models.metrictrace import (
+    DatasetVersion,
+    Metric,
+    MetricDefinition,
+    MetricObservation,
+    MetricSource,
+    ReplayCell,
+    ReplayJob,
+    Workspace,
+    WorkspaceMember,
+)
 
