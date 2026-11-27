@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # Uploads are temporary working files, never application persistence.
     uploads_dir: str = "/tmp/ask-database-uploads"
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)
+    # Development adapter. Production must point this at mounted durable storage
+    # or use the S3 adapter before publishing historical versions.
+    historical_storage_dir: str = "./metrictrace-history"
 
     @model_validator(mode="after")
     def parse_allowed_origins(self) -> "Settings":

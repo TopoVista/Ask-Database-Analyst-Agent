@@ -16,8 +16,8 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Decision Intelligence Agent",
-  description: "AI-powered analytical reasoning for your database",
+  title: "MetricTrace",
+  description: "Time travel for business metrics",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

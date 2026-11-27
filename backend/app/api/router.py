@@ -1,12 +1,13 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, connections, datasets, evaluation, queries, schema, sessions, simulate, specialists
+from app.api.v1 import auth, connections, datasets, evaluation, metrictrace, queries, schema, sessions, simulate, specialists
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/v1")
 api_router.include_router(connections.router, prefix="/v1")
 api_router.include_router(datasets.router, prefix="/v1")
 api_router.include_router(evaluation.router, prefix="/v1")
+api_router.include_router(metrictrace.router, prefix="/v1")
 api_router.include_router(queries.router, prefix="/v1")
 api_router.include_router(sessions.router, prefix="/v1")
 api_router.include_router(schema.router, prefix="/v1")

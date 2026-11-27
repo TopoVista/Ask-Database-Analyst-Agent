@@ -5,6 +5,7 @@ import tempfile
 
 _TMP_DIR = tempfile.mkdtemp(prefix="ada-test-")
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TMP_DIR}/test.db"
+os.environ["HISTORICAL_STORAGE_DIR"] = f"{_TMP_DIR}/history"
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("AUTH_BYPASS", "false")
 

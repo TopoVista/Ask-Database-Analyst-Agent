@@ -34,8 +34,8 @@ structlog.configure(
 )
 
 app = FastAPI(
-    title="Decision Intelligence Agent API",
-    version="1.0.0",
+    title="MetricTrace API",
+    version="2.0.0",
     docs_url="/docs" if settings.environment != "production" else None,
     lifespan=lifespan,
 )
@@ -55,4 +55,4 @@ app.include_router(api_router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "product": "MetricTrace", "version": "2.0.0"}
