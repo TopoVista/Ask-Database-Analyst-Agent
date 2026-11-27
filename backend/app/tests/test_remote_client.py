@@ -5,6 +5,14 @@ from metrictrace_sdk.cli import main
 from metrictrace_sdk.models import StaticLineageRequest
 
 
+def test_public_sdk_exports_static_lineage_types():
+    from metrictrace_sdk import StaticLineageRequest as PublicRequest
+    from metrictrace_sdk import StaticLineageResult
+
+    assert PublicRequest is StaticLineageRequest
+    assert StaticLineageResult(lineage={"source_tables": []}).lineage == {"source_tables": []}
+
+
 def test_remote_client_sends_typed_static_lineage_request(monkeypatch):
     client = MetricTraceClient("https://metrictrace.example", "token")
     captured = {}
