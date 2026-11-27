@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ReplayRequest(BaseModel):
@@ -18,3 +18,23 @@ class ReplayRead(BaseModel):
     status: str
     cells: list[dict[str, Any]]
     attribution: dict[str, Any] | None = None
+
+
+class CaptureTableRequest(BaseModel):
+    schema_name: str = Field(validation_alias="schema", serialization_alias="schema", min_length=1, max_length=63)
+    table: str = Field(min_length=1, max_length=63)
+
+
+class PostgresSourceCreate(BaseModel):
+    workspace_id: str
+    connection_id: str
+    name: str = Field(min_length=1, max_length=255)
+    tables: list[CaptureTableRequest] = Field(min_length=1, max_length=64)
+
+
+class CaptureRead(BaseModel):
+    dataset_version_id: str
+    status: str
+    row_count: int
+    byte_size: int
+    manifest_uri: str

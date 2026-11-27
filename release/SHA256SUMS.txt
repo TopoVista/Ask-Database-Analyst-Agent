@@ -1,0 +1,3 @@
+a104e64516205093e63732ed1030ba2cd5fbe314fe8321998060b523616b47a1  backend/dist/metrictrace_lite-0.1.0-py3-none-any.whl
+1072c751a0d1b4a1589a918d6b11afe508e73d96367724df33da22cca5093dac  backend/dist/metrictrace_lite-0.1.0.tar.gz
+5f7269cd25c019f2c57ae552ea18c5429d9c55783598ff4aedfb46d286e93c00  release/historical-metric-debugger.zip

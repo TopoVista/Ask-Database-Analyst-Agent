@@ -2,6 +2,31 @@
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "metrictrace-lite"
+version = "0.2.0rc1"
+description = "Typed SDK and CLI for deterministic MetricTrace reliability checks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+keywords = ["data-quality", "metrics", "replay", "sql"]
+dependencies = ["duckdb==1.1.3", "sqlglot==25.31.4"]
+
+[project.optional-dependencies]
+remote = ["httpx>=0.27,<0.29"]
+mcp = ["mcp>=1"]
+
+[tool.setuptools.packages.find]
+include = ["metrictrace_sdk*"]
+
+[tool.setuptools.package-data]
+metrictrace_sdk = ["examples/*.csv", "examples/*.sql"]
+
+[project.scripts]
+metrictrace = "metrictrace_sdk.cli:main"
+metrictrace-mcp = "metrictrace_sdk.mcp_server:main"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["app/tests"]

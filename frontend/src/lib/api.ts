@@ -284,6 +284,8 @@ export interface MetricTraceDemoResult {
     data_effect: string;
     definition_effect: string;
     interaction_effect: string;
+    data_contribution?: string;
+    definition_contribution?: string;
     total_change: string;
     reconciles: boolean;
   } | null;

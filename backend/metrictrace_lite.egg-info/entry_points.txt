@@ -1,0 +1,3 @@
+[console_scripts]
+metrictrace = metrictrace_sdk.cli:main
+metrictrace-mcp = metrictrace_sdk.mcp_server:main

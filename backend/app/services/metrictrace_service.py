@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -17,9 +18,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.domain.attribution import four_way_attribution
+from app.infrastructure.capture import CaptureLimits, CaptureTable, PostgresSnapshotCapture
 from app.infrastructure.storage import LocalParquetStorage
+from app.infrastructure.storage.snapshot_store import snapshot_store_from_settings
+from app.services.connection_service import ConnectionService
 from app.models.metrictrace import (
     DatasetVersion,
+    DurableJob,
     Metric,
     MetricDefinition,
     MetricObservation,
@@ -29,6 +35,8 @@ from app.models.metrictrace import (
     Workspace,
     WorkspaceMember,
 )
+from app.models.connection import DBConnection
+from app.services.job_queue import DurableJobQueue
 from app.models.user import User
 from app.tools.sql_validator import validate_sql
 
@@ -88,6 +96,140 @@ class MetricTraceService:
         self.db.add(version)
         await self.db.flush()
         return version
+
+    async def create_postgres_source(
+        self, user: User, workspace_id: UUID, connection_id: UUID, name: str, tables: list[CaptureTable]
+    ) -> MetricSource:
+        """Register a source without copying its credentials into MetricTrace metadata."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        connection = await ConnectionService(self.db).get_connection(connection_id, user.id)
+        if connection is None or connection.db_type.lower() not in {"postgres", "postgresql"}:
+            raise LookupError("A readable PostgreSQL connection is required.")
+        if not tables:
+            raise ValueError("At least one table must be selected.")
+        source = MetricSource(
+            workspace_id=workspace.id,
+            connection_id=connection.id,
+            name=name,
+            source_type="postgresql",
+            capture_config={"tables": [{"schema": table.schema, "table": table.table} for table in tables]},
+            capture_status="ready",
+            capabilities={"consistent_snapshot": "postgresql_repeatable_read"},
+        )
+        self.db.add(source)
+        await self.db.flush()
+        return source
+
+    async def enqueue_postgres_capture(self, user: User, workspace_id: UUID, source_id: UUID):
+        """Queue a user-authorized capture; credentials never enter the job payload."""
+        await self._owned_workspace(user, workspace_id)
+        result = await self.db.execute(
+            select(MetricSource).where(
+                MetricSource.id == source_id,
+                MetricSource.workspace_id == workspace_id,
+                MetricSource.source_type == "postgresql",
+            )
+        )
+        source = result.scalars().first()
+        if source is None or source.connection_id is None:
+            raise LookupError("PostgreSQL source not found")
+        connection = await ConnectionService(self.db).get_connection(source.connection_id, user.id)
+        if connection is None or not connection.is_active:
+            raise LookupError("The source connection is unavailable.")
+        source.capture_status = "queued"
+        job = await DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds).enqueue(
+            workspace_id,
+            "SNAPSHOT_CAPTURE",
+            {"source_id": str(source.id)},
+            f"snapshot-capture:{source.id}:{uuid.uuid4()}",
+            max_attempts=3,
+        )
+        await self.db.flush()
+        return job
+
+    async def execute_postgres_capture(self, workspace_id: UUID, source_id: UUID) -> DatasetVersion:
+        """Worker-only capture execution after API authorization and queue fencing.
+
+        The source read happens after committing the short metadata state update,
+        so a worker never holds a metadata transaction while reading PostgreSQL
+        or uploading Parquet objects.
+        """
+        result = await self.db.execute(
+            select(MetricSource, DBConnection)
+            .join(DBConnection, MetricSource.connection_id == DBConnection.id)
+            .where(
+                MetricSource.id == source_id,
+                MetricSource.workspace_id == workspace_id,
+                MetricSource.source_type == "postgresql",
+                DBConnection.is_active.is_(True),
+            )
+        )
+        row = result.first()
+        if row is None:
+            raise LookupError("PostgreSQL source or active connection not found")
+        source, connection = row
+        configured_tables = [CaptureTable(**entry) for entry in source.capture_config.get("tables", [])]
+        if not configured_tables:
+            raise ValueError("The source has no selected tables.")
+        connection_string = ConnectionService(self.db).build_connection_string(connection)
+        source.capture_status = "capturing"
+        await self.db.commit()
+
+        settings = get_settings()
+        limits = CaptureLimits(
+            batch_rows=settings.metrictrace_capture_batch_rows,
+            max_tables=settings.metrictrace_capture_max_tables,
+            max_rows=settings.metrictrace_capture_max_rows,
+            max_bytes=settings.metrictrace_capture_max_bytes,
+            timeout_seconds=settings.metrictrace_capture_timeout_seconds,
+        )
+        try:
+            snapshot = await PostgresSnapshotCapture(snapshot_store_from_settings(settings), limits).capture(
+                connection_string, workspace_id, source.id, configured_tables
+            )
+        except Exception:
+            # This starts a new, short metadata transaction after source I/O.
+            source.capture_status = "failed"
+            await self.db.commit()
+            raise
+
+        parent_result = await self.db.execute(
+            select(DatasetVersion.id)
+            .where(DatasetVersion.source_id == source.id, DatasetVersion.status == "ready")
+            .order_by(DatasetVersion.captured_at.desc())
+            .limit(1)
+        )
+        version = DatasetVersion(
+            source_id=source.id,
+            parent_version_id=parent_result.scalar_one_or_none(),
+            manifest_uri=snapshot.manifest_key,
+            content_hash=snapshot.content_hash,
+            row_count=snapshot.row_count,
+            byte_size=snapshot.byte_size,
+            schema_json=snapshot.schema,
+            consistency_level="postgresql_repeatable_read",
+            status="ready",
+        )
+        source.capture_status = "ready"
+        self.db.add(version)
+        await self.db.commit()
+        await self.db.refresh(version)
+        return version
+
+    async def capture_job_for_user(
+        self, user: User, workspace_id: UUID, source_id: UUID, job_id: UUID
+    ):
+        """Read a capture job only when its workspace and source both match."""
+        await self._owned_workspace(user, workspace_id)
+        job = await self.db.get(DurableJob, job_id)
+        if (
+            job is None
+            or job.workspace_id != workspace_id
+            or job.job_type != "SNAPSHOT_CAPTURE"
+            or job.input_payload.get("source_id") != str(source_id)
+        ):
+            raise LookupError("Snapshot capture job not found")
+        return job
 
     @staticmethod
     def _sql_hash(sql: str) -> str:
@@ -186,17 +328,78 @@ class MetricTraceService:
             old_new = results["old_data_new_definition"]
             new_old = results["new_data_old_definition"]
             new_new = results["new_data_new_definition"]
-            job.attribution = {
-                "data_effect": str(new_old - old_old),
-                "definition_effect": str(old_new - old_old),
-                "interaction_effect": str(new_new - new_old - old_new + old_old),
-                "total_change": str(new_new - old_old),
-                "reconciles": (new_old - old_old) + (old_new - old_old) + (new_new - new_old - old_new + old_old) == new_new - old_old,
-            }
+            job.attribution = four_way_attribution(old_old, old_new, new_old, new_new)
             job.status = "completed"
         job.completed_at = datetime.now(timezone.utc)
         await self.db.flush()
         return job
+
+    async def submit_replay(self, user: User, workspace_id: UUID, old_version_id: UUID, new_version_id: UUID, old_definition_id: UUID, new_definition_id: UUID) -> ReplayJob:
+        """Persist four immutable replay cells and enqueue independent workers."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        versions = await self.db.execute(select(DatasetVersion, MetricSource).join(MetricSource, DatasetVersion.source_id == MetricSource.id).where(DatasetVersion.id.in_([old_version_id, new_version_id]), MetricSource.workspace_id == workspace.id, DatasetVersion.status == "ready"))
+        owned_versions = {version.id: version for version, _ in versions.all()}
+        definitions = await self.db.execute(select(MetricDefinition).join(Metric).where(MetricDefinition.id.in_([old_definition_id, new_definition_id]), Metric.workspace_id == workspace.id))
+        owned_definitions = {definition.id: definition for definition in definitions.scalars().all()}
+        if set(owned_versions) != {old_version_id, new_version_id} or set(owned_definitions) != {old_definition_id, new_definition_id}:
+            raise LookupError("Replay inputs are unavailable in this workspace")
+        replay = ReplayJob(workspace_id=workspace.id, status="queued")
+        self.db.add(replay)
+        await self.db.flush()
+        queue = DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds)
+        for label, definition_id, version_id in (("old_data_old_definition", old_definition_id, old_version_id), ("old_data_new_definition", new_definition_id, old_version_id), ("new_data_old_definition", old_definition_id, new_version_id), ("new_data_new_definition", new_definition_id, new_version_id)):
+            definition, version = owned_definitions[definition_id], owned_versions[version_id]
+            fingerprint = hashlib.sha256(f"{workspace.id}:{version.content_hash}:{definition.normalized_sql_hash}:v1".encode()).hexdigest()
+            cell = ReplayCell(replay_job_id=replay.id, label=label, definition_id=definition_id, dataset_version_id=version_id, status="queued", execution_fingerprint=fingerprint)
+            self.db.add(cell)
+            await self.db.flush()
+            durable = await queue.enqueue(workspace.id, "REPLAY_CELL_EXECUTION", {"cell_id": str(cell.id)}, f"replay-cell:{cell.id}")
+            cell.durable_job_id = durable.id
+        await self.db.flush()
+        return replay
+
+    async def execute_queued_cell(self, cell_id: UUID, queue: DurableJobQueue, worker_id: str, fencing_token: int) -> dict:
+        # Read and mark the cell in a short metadata transaction. Computation
+        # happens only after the commit below, so a slow DuckDB query never
+        # holds a row lock or metadata transaction.
+        cell = await self.db.get(ReplayCell, cell_id)
+        if not cell or not cell.durable_job_id:
+            raise LookupError("Replay cell not found")
+        if cell.status == "completed":
+            return {"cell_id": str(cell.id), "status": cell.status}
+        cell.status = "running"
+        definition = await self.db.get(MetricDefinition, cell.definition_id)
+        version = await self.db.get(DatasetVersion, cell.dataset_version_id)
+        await self.db.commit()
+        try:
+            result, duration = await self._execute_cell(definition, version)
+            await queue._owned(cell.durable_job_id, worker_id, fencing_token)
+            cell = await self.db.get(ReplayCell, cell_id, with_for_update=True)
+            if cell is None or cell.status == "completed":
+                return {"cell_id": str(cell_id), "status": "completed"}
+            cell.result_text, cell.duration_ms, cell.status, cell.error = result, duration, "completed", None
+            self.db.add(MetricObservation(definition_id=cell.definition_id, dataset_version_id=cell.dataset_version_id, result_text=result, status="completed", duration_ms=duration))
+        except Exception as exc:
+            await queue._owned(cell.durable_job_id, worker_id, fencing_token)
+            failed = await self.db.get(ReplayCell, cell_id, with_for_update=True)
+            if failed is not None:
+                failed.status, failed.error = "failed", str(exc)
+            raise
+        await self._finalize_replay(cell.replay_job_id)
+        return {"cell_id": str(cell.id), "status": cell.status, "duration_ms": cell.duration_ms}
+
+    async def _finalize_replay(self, replay_id: UUID) -> None:
+        replay = await self.db.get(ReplayJob, replay_id, with_for_update=True)
+        cells = list((await self.db.execute(select(ReplayCell).where(ReplayCell.replay_job_id == replay_id))).scalars())
+        if any(cell.status == "failed" for cell in cells):
+            replay.status = "failed"
+            replay.completed_at = datetime.now(timezone.utc)
+        elif len(cells) == 4 and all(cell.status == "completed" for cell in cells):
+            values = {cell.label: Decimal(cell.result_text) for cell in cells}
+            replay.attribution = four_way_attribution(values["old_data_old_definition"], values["old_data_new_definition"], values["new_data_old_definition"], values["new_data_new_definition"])
+            replay.status, replay.completed_at = "completed", datetime.now(timezone.utc)
+        elif any(cell.status == "running" for cell in cells):
+            replay.status = "running"
 
     async def demo(self, user: User) -> dict[str, Any]:
         """Create and replay the canonical no-AI metric-regression fixture once."""
@@ -210,12 +413,12 @@ class MetricTraceService:
             self.db.add(source)
             await self.db.flush()
             old_records = [
-                {"order_id": "a-1", "amount_inr": 1_200_000, "status": "paid", "channel": "direct"},
-                {"order_id": "a-2", "amount_inr": 1_200_000, "status": "paid", "channel": "marketplace"},
+                {"order_id": "a-1", "amount_inr": 2_100_000, "status": "paid", "channel": "direct"},
+                {"order_id": "a-2", "amount_inr": 300_000, "status": "paid", "channel": "marketplace"},
             ]
             new_records = [
-                {"order_id": "a-1", "amount_inr": 1_200_000, "status": "paid", "channel": "direct"},
-                {"order_id": "a-2", "amount_inr": 600_000, "status": "paid", "channel": "marketplace"},
+                {"order_id": "a-1", "amount_inr": 1_800_000, "status": "paid", "channel": "direct"},
+                {"order_id": "a-2", "amount_inr": 420_000, "status": "paid", "channel": "marketplace"},
             ]
             old_version = await self.capture_records(workspace, source, old_records)
             new_version = await self.capture_records(workspace, source, new_records, old_version.id)
@@ -244,7 +447,7 @@ class MetricTraceService:
             "workspace_id": str(workspace.id),
             "replay_id": str(job.id),
             "status": job.status,
-            "headline": "Monday revenue was ₹24 lakh at capture, then ₹18 lakh on corrected data using the original definition.",
+            "headline": "Four exact executions reconstruct the ₹24 lakh to ₹18 lakh metric regression.",
             "inputs": {
                 "old_dataset_version": str(old_version.id), "new_dataset_version": str(new_version.id),
                 "old_definition": str(old_definition.id), "new_definition": str(new_definition.id),

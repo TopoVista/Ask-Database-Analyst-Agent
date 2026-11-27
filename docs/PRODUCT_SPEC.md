@@ -25,3 +25,11 @@ S3/MinIO persistence, CDC, bitemporal mutable facts, a durable background
 worker, contracts, incidents, receipts, lineage or AI investigation tools.
 The local storage adapter is for development only and must be replaced or
 mounted on durable storage in a hosted deployment.
+
+## Phase 2 foundations
+
+MetricTrace now has a typed storage boundary that can target local development
+storage or S3-compatible object stores, and a durable-job primitive with
+lease/fencing semantics. The replay route is deliberately not described as
+asynchronous yet: wiring cell execution to the worker and validating it against
+real PostgreSQL/MinIO is pending.

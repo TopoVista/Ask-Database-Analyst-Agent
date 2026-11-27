@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     # Development adapter. Production must point this at mounted durable storage
     # or use the S3 adapter before publishing historical versions.
     historical_storage_dir: str = "./metrictrace-history"
+    historical_storage_backend: str = "local"
+    historical_s3_bucket: str = ""
+    historical_s3_endpoint_url: str = ""
+    historical_s3_access_key: str = ""
+    historical_s3_secret_key: str = ""
+    historical_s3_region: str = "us-east-1"
+    metrictrace_capture_max_tables: int = Field(default=16, ge=1, le=64)
+    metrictrace_capture_batch_rows: int = Field(default=2_000, ge=1, le=10_000)
+    metrictrace_capture_max_rows: int = Field(default=5_000_000, ge=1, le=100_000_000)
+    metrictrace_capture_max_bytes: int = Field(default=2 * 1024 * 1024 * 1024, ge=1_024, le=100 * 1024 * 1024 * 1024)
+    metrictrace_capture_timeout_seconds: int = Field(default=900, ge=5, le=3_600)
+    metrictrace_job_lease_seconds: int = Field(default=30, ge=5, le=300)
+    metrictrace_worker_id: str = ""
 
     @model_validator(mode="after")
     def parse_allowed_origins(self) -> "Settings":
@@ -97,6 +110,12 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must point to managed PostgreSQL in production; SQLite is ephemeral on Render.")
         if self.environment.lower() == "production" and not self.encryption_key:
             raise ValueError("ENCRYPTION_KEY is required in production to protect database credentials at rest.")
+        if self.historical_storage_backend not in {"local", "s3"}:
+            raise ValueError("HISTORICAL_STORAGE_BACKEND must be 'local' or 's3'.")
+        if self.environment.lower() == "production" and self.historical_storage_backend == "local":
+            raise ValueError("Production historical storage must use S3-compatible object storage.")
+        if self.historical_storage_backend == "s3" and not self.historical_s3_bucket:
+            raise ValueError("HISTORICAL_S3_BUCKET is required for S3-compatible storage.")
         return self
 
 
