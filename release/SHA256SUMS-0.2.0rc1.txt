@@ -1,0 +1,2 @@
+b76b4d362e1ae364c7aefdd1a4b69329dab01de334d58c7cb2f266f70f39243f  backend/dist/0.2.0rc1/metrictrace_lite-0.2.0rc1-py3-none-any.whl
+5a285f5faaef8ebeff8c94a0bd98fde2867f0dd5c5c8db4efef10020e01e2721  backend/dist/0.2.0rc1/metrictrace_lite-0.2.0rc1.tar.gz

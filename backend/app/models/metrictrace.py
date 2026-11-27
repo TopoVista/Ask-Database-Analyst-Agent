@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +47,8 @@ class MetricSource(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="import")
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("db_connections.id", ondelete="RESTRICT"))
+    capture_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     capture_status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
     capabilities: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -118,6 +120,34 @@ class ReplayJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DurableJob(Base):
+    """Lease-owned unit of worker execution; payloads contain IDs, never secrets."""
+    __tablename__ = "durable_jobs"
+    __table_args__ = (UniqueConstraint("workspace_id", "idempotency_key", name="uq_durable_job_idempotency"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    parent_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("durable_jobs.id", ondelete="CASCADE"))
+    job_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    input_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="QUEUED")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    lease_owner: Mapped[str | None] = mapped_column(String(128))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fencing_token: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cancellation_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    result_reference: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ReplayCell(Base):
     __tablename__ = "replay_cells"
     __table_args__ = (UniqueConstraint("replay_job_id", "label", name="uq_replay_cell_label"),)
@@ -131,6 +161,8 @@ class ReplayCell(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    durable_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("durable_jobs.id"))
+    execution_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
 
 Index("idx_workspace_members_user", WorkspaceMember.user_id)
@@ -138,3 +170,4 @@ Index("idx_metric_sources_workspace", MetricSource.workspace_id)
 Index("idx_dataset_versions_source_capture", DatasetVersion.source_id, DatasetVersion.captured_at)
 Index("idx_metrics_workspace", Metric.workspace_id)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
+Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

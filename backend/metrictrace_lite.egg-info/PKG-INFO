@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: metrictrace-lite
+Version: 0.2.0rc1
+Summary: Typed SDK and CLI for deterministic MetricTrace reliability checks
+License-Expression: MIT
+Keywords: data-quality,metrics,replay,sql
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: THIRD_PARTY_NOTICES.md
+Requires-Dist: duckdb==1.1.3
+Requires-Dist: sqlglot==25.31.4
+Provides-Extra: remote
+Requires-Dist: httpx<0.29,>=0.27; extra == "remote"
+Provides-Extra: mcp
+Requires-Dist: mcp>=1; extra == "mcp"
+Dynamic: license-file
+
+# MetricTrace Lite
+
+MetricTrace Lite is a local, deterministic historical metric replay package. It runs four SQL cells across two authorized CSV or Parquet dataset versions and attributes the numerical change to data, definition, and their interaction.
+
+## Install from a local artifact
+
+```bash
+python -m pip install metrictrace_lite-0.2.0rc1-py3-none-any.whl
+metrictrace demo
+```
+
+Python 3.11+ is required. Core installation includes DuckDB and SQLGlot only. Install `metrictrace-lite[mcp]` for the optional local MCP server and `metrictrace-lite[remote]` for authenticated Platform API access.
+
+## Local replay
+
+```bash
+metrictrace local-replay --old-dataset old.csv --new-dataset new.csv \
+  --old-sql-file old.sql --new-sql-file new.sql --output replay.json
+metrictrace verify-report --report replay.json
+```
+
+Use `metrictrace --help` for manifest, schema inspection, Markdown, parameter, timeout, and resource-limit options. Local mode does not require Docker, a hosted database, an API key, or network access. Uninstall with `python -m pip uninstall metrictrace-lite`.
+
+## Security and limits
+
+Only explicitly declared CSV/Parquet files and logical tables are registered. SQL file readers, URLs, extensions, attachments, and undeclared tables are rejected. Process and DuckDB limits are best-effort protections, not a full operating-system sandbox; use an isolated account for untrusted files or SQL.
+
+Windows execution has been tested in this repository. The package targets Python 3.11+ on Windows and Linux; Linux and macOS need separate release validation before being claimed as tested.

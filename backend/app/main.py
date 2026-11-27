@@ -56,3 +56,9 @@ app.include_router(api_router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok", "product": "MetricTrace", "version": "2.0.0"}
+
+
+@app.get("/ready")
+async def readiness():
+    """Configuration readiness; database connectivity remains worker/API scoped."""
+    return {"status": "ready", "historical_storage_backend": settings.historical_storage_backend}

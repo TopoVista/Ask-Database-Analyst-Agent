@@ -8,6 +8,7 @@ from app.models.session import QuerySession
 from app.models.user import User
 from app.models.metrictrace import (
     DatasetVersion,
+    DurableJob,
     Metric,
     MetricDefinition,
     MetricObservation,

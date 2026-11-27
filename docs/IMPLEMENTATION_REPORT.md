@@ -17,6 +17,11 @@ implemented core is real historical capture and replay, not a UI mock.
 - Added a four-way decomposition: data effect, definition effect, interaction
   effect and total change. The service asserts that the effects reconcile.
 - Added the Replay Lab route, backed solely by API output.
+- Added a typed, workspace-isolated SnapshotStore boundary with local and
+  S3-compatible/MinIO adapters plus production configuration validation.
+- Added the durable job model, PostgreSQL-compatible `SKIP LOCKED` claim path,
+  leases, fencing tokens, retry state and an independently runnable worker
+  loop. It is tested in isolation but is not yet the Replay Lab executor.
 
 ## Retained components
 
@@ -56,6 +61,9 @@ value and retain their error.
 | Contracts, incidents, receipts | NOT_STARTED | Planned after worker foundation. |
 | CDC and bitemporal mutable facts | NOT_STARTED | Requires explicit bootstrap/replication design. |
 | S3/MinIO production adapter | NOT_STARTED | Local adapter must not be used on ephemeral hosting. |
+| Durable job queue primitives | COMPLETE | Idempotency, leases, fencing and bounded retry are implemented. |
+| Replay dispatched to worker queue | NOT_STARTED | Current replay path remains synchronous. |
+| PostgreSQL repeatable-read capture | NOT_STARTED | Still the next data-plane milestone. |
 
 ## Local run
 
