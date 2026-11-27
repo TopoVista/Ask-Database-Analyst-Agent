@@ -14,7 +14,7 @@ from metrictrace_sdk.contracts import ContractError, evaluate_contracts
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import RegressionError
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
-from metrictrace_sdk.lineage import LineageError, inspect_sql_lineage as inspect_lineage
+from metrictrace_sdk.lineage import LineageError, inspect_sql_lineage as inspect_static_lineage
 from metrictrace_sdk.local_replay import (
     LocalReplayError,
     LocalReplayLimits,
@@ -49,6 +49,19 @@ def _worker_environment() -> dict[str, str]:
     environment = {name: os.environ[name] for name in names if name in os.environ}
     environment["PYTHONIOENCODING"] = "utf-8"
     return environment
+
+
+def _remote_client():
+    """Create an authenticated remote client only when explicit config exists."""
+    from metrictrace_sdk.client import MetricTraceClient
+
+    base_url = os.getenv("METRICTRACE_REMOTE_API_URL", "").strip()
+    token = os.getenv("METRICTRACE_REMOTE_TOKEN", "").strip()
+    if not base_url or not token:
+        raise PermissionError(
+            "Configure METRICTRACE_REMOTE_API_URL and METRICTRACE_REMOTE_TOKEN for remote MCP execution."
+        )
+    return MetricTraceClient(base_url, token)
 
 
 def _run_worker(old_datasets, new_datasets, old_sql, new_sql, parameters, limits, roots) -> dict:
@@ -194,9 +207,24 @@ def build_server():
     def inspect_sql_lineage(sql: str, allowed_tables: list[str]) -> dict:
         """Inspect static dependencies and output columns of authorized read-only metric SQL."""
         try:
-            return {"ok": True, "lineage": inspect_lineage(sql, allowed_tables)}
+            return {"ok": True, "lineage": inspect_static_lineage(sql, allowed_tables)}
         except (LineageError, ValueError) as exc:
             return {"ok": False, "error": {"code": "lineage_inspection_rejected", "message": str(exc)}}
+
+    @server.tool()
+    def inspect_lineage(workspace_id: str, sql: str, allowed_tables: list[str]) -> dict:
+        """Inspect tenant-scoped SQL lineage through an authenticated MetricTrace Platform."""
+        try:
+            from metrictrace_sdk.models import StaticLineageRequest
+
+            result = _remote_client().inspect_static_lineage(
+                StaticLineageRequest(workspace_id, sql, allowed_tables)
+            )
+            return {"ok": True, "lineage": result.lineage}
+        except PermissionError as exc:
+            return {"ok": False, "error": {"code": "remote_configuration_required", "message": str(exc)}}
+        except Exception as exc:
+            return {"ok": False, "error": {"code": "remote_lineage_rejected", "message": str(exc)[:512]}}
 
     @server.tool()
     def run_local_metric_replay(
