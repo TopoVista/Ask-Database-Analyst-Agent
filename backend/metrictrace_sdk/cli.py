@@ -253,6 +253,15 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--api-url", required=True)
     status.add_argument("--token", default="")
     status.add_argument("--replay-id", required=True)
+    remote_lineage = sub.add_parser(
+        "remote-lineage-inspect", help="Inspect authorized SQL through an authenticated MetricTrace Platform"
+    )
+    remote_lineage.add_argument("--api-url", required=True)
+    remote_lineage.add_argument("--token", default="")
+    remote_lineage.add_argument("--workspace-id", required=True)
+    remote_lineage.add_argument("--sql")
+    remote_lineage.add_argument("--sql-file")
+    remote_lineage.add_argument("--tables", required=True, help="Comma-separated authorized logical tables")
     return parser
 
 
@@ -372,6 +381,17 @@ def main(argv: list[str] | None = None) -> int:
             client = MetricTraceClient(args.api_url, args.token)
             if args.command == "replay-status":
                 return _emit({"ok": True, "replay": client.get_replay(args.replay_id)})
+            if args.command == "remote-lineage-inspect":
+                from metrictrace_sdk.models import StaticLineageRequest
+
+                result = client.inspect_static_lineage(
+                    StaticLineageRequest(
+                        args.workspace_id,
+                        _read_sql(args.sql, args.sql_file, "metric"),
+                        [table.strip() for table in args.tables.split(",") if table.strip()],
+                    )
+                )
+                return _emit({"ok": True, "lineage": result.lineage})
             result = client.run_four_way_replay(
                 FourWayReplayRequest(
                     args.workspace_id,
