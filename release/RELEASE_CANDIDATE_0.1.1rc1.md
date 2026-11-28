@@ -19,6 +19,9 @@ unsupported rather than directing a buyer to a separate product or workflow.
 - Extracted standalone runner: passed on Windows/Python 3.11 against the
   synthetic CSV/SQL fixture. It produced A/B/C/D = 2,400,000 / 2,100,000 /
   2,220,000 / 1,800,000 and reconciled a -600,000 total change.
+- Fresh extracted-environment installation: passed. A temporary Python 3.11
+  virtual environment installed only the declared `duckdb==1.1.3` and
+  `sqlglot==25.31.4` dependencies, then ran the extracted script successfully.
 
 ## Status and limits
 
