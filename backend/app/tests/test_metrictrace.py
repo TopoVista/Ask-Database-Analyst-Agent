@@ -27,6 +27,24 @@ async def test_static_lineage_api_uses_authenticated_workspace_scope(client):
     assert denied.status_code == 404
 
 
+async def test_metric_lineage_snapshot_binds_definition_and_dataset_versions(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['old_definition']}/lineage",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["lineage"]["binding"]["dataset_version_id"] == fixture["inputs"]["old_dataset_version"]
+    assert body["lineage"]["source_tables"] == ["source_data"]
+    repeated = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['old_definition']}/lineage",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == body["id"]
+
+
 @pytest.mark.asyncio
 async def test_canonical_metrictrace_replay_is_deterministic_and_reconciles(client):
     first = await client.post("/api/v1/metrictrace/demo")

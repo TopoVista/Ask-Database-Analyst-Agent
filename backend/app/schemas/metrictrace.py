@@ -99,6 +99,11 @@ class MetricPromotionRequest(BaseModel):
     shadow_execution_id: str
 
 
+class MetricLineageSnapshotRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

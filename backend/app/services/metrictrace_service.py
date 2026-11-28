@@ -35,6 +35,7 @@ from app.models.metrictrace import (
     MetricContract,
     MetricDefinition,
     MetricObservation,
+    MetricLineageSnapshot,
     MetricPromotion,
     MetricSource,
     ReplayCell,
@@ -96,6 +97,50 @@ class MetricTraceService:
         """
         await self._owned_workspace(user, workspace_id)
         return inspect_sql_lineage(sql, allowed_tables)
+
+    async def snapshot_metric_lineage(
+        self, user: User, workspace_id: UUID, definition_id: UUID, dataset_version_id: UUID
+    ) -> dict[str, Any]:
+        """Persist static lineage only after binding it to owned immutable inputs."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        definition = (await self.db.execute(
+            select(MetricDefinition).join(Metric).where(
+                MetricDefinition.id == definition_id, Metric.workspace_id == workspace.id
+            )
+        )).scalars().first()
+        dataset = (await self.db.execute(
+            select(DatasetVersion).join(MetricSource).where(
+                DatasetVersion.id == dataset_version_id, DatasetVersion.status == "ready", MetricSource.workspace_id == workspace.id
+            )
+        )).scalars().first()
+        if definition is None or dataset is None:
+            raise LookupError("Metric definition or dataset version is unavailable in this workspace")
+        existing = (await self.db.execute(select(MetricLineageSnapshot).where(
+            MetricLineageSnapshot.definition_id == definition.id,
+            MetricLineageSnapshot.dataset_version_id == dataset.id,
+        ))).scalars().first()
+        if existing:
+            return self._lineage_snapshot_read(existing)
+        store = snapshot_store_from_settings(get_settings())
+        try:
+            manifest = json.loads(store.read(workspace.id, dataset.manifest_uri))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise DatasetDiffError("Dataset version manifest is unavailable or invalid.") from exc
+        entries = manifest.get("tables")
+        tables = [str(entry.get("table", "")).lower() for entry in entries if isinstance(entry, dict) and entry.get("table")] if isinstance(entries, list) else ["source_data"]
+        if not tables:
+            raise DatasetDiffError("Dataset version has no static SQL tables.")
+        report = inspect_sql_lineage(definition.sql, tables)
+        report["binding"] = {"definition_id": str(definition.id), "definition_hash": definition.normalized_sql_hash, "dataset_version_id": str(dataset.id), "dataset_content_hash": dataset.content_hash, "authorized_tables": sorted(tables)}
+        fingerprint = hashlib.sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        snapshot = MetricLineageSnapshot(workspace_id=workspace.id, definition_id=definition.id, dataset_version_id=dataset.id, fingerprint=fingerprint, report=report)
+        self.db.add(snapshot)
+        await self.db.flush()
+        return self._lineage_snapshot_read(snapshot)
+
+    @staticmethod
+    def _lineage_snapshot_read(snapshot: MetricLineageSnapshot) -> dict[str, Any]:
+        return {"id": str(snapshot.id), "definition_id": str(snapshot.definition_id), "dataset_version_id": str(snapshot.dataset_version_id), "fingerprint": snapshot.fingerprint, "created_at": snapshot.created_at.isoformat(), "lineage": snapshot.report}
 
     async def cleanup_stale_snapshot_attempts(
         self, workspace_id: UUID, retention_seconds: int

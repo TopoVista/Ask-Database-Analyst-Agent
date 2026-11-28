@@ -11,7 +11,7 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, MetricPromotionRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, MetricLineageSnapshotRequest, MetricPromotionRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
@@ -21,6 +21,20 @@ from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
+
+
+@router.post("/metric-definitions/{definition_id}/lineage", status_code=status.HTTP_201_CREATED)
+async def snapshot_metric_lineage(definition_id: UUID, request: MetricLineageSnapshotRequest, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    """Persist a version-bound static lineage snapshot for authorized evidence."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).snapshot_metric_lineage(
+            user, UUID(request.workspace_id), definition_id, UUID(request.dataset_version_id)
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (DatasetDiffError, LineageError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/replays/{replay_id}/decision-receipt", status_code=status.HTTP_201_CREATED)
