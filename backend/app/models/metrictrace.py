@@ -61,6 +61,9 @@ class DatasetVersion(Base):
     source_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_sources.id", ondelete="CASCADE"), nullable=False)
     parent_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("dataset_versions.id"))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    source_snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    knowledge_recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    temporal_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     manifest_uri: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     row_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -68,6 +71,17 @@ class DatasetVersion(Base):
     schema_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     consistency_level: Mapped[str] = mapped_column(String(32), nullable=False, default="import")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+
+
+class CdcCheckpoint(Base):
+    __tablename__ = "cdc_checkpoints"
+    __table_args__ = (UniqueConstraint("source_id", name="uq_cdc_checkpoint_source"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_sources.id", ondelete="CASCADE"), nullable=False)
+    acknowledged_lsn: Mapped[str | None] = mapped_column(String(32))
+    accepted_event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class Metric(Base):
@@ -106,6 +120,115 @@ class MetricObservation(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     warnings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricContract(Base):
+    """An immutable, workspace-scoped version of a declarative contract set."""
+
+    __tablename__ = "metric_contracts"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", "version", name="uq_metric_contract_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    contracts: Mapped[list] = mapped_column(JSON, nullable=False)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ContractEvaluation(Base):
+    """Durable evidence from evaluating one exact contract version and snapshot."""
+
+    __tablename__ = "contract_evaluations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    contract_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_contracts.id", ondelete="CASCADE"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class RegressionPolicy(Base):
+    """An immutable gate policy referenced by persisted shadow executions."""
+
+    __tablename__ = "regression_policies"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", "version", name="uq_regression_policy_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_absolute_difference: Mapped[str | None] = mapped_column(String(128))
+    max_percent_difference: Mapped[str | None] = mapped_column(String(128))
+    required_contract_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("metric_contracts.id", ondelete="RESTRICT"))
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ShadowExecution(Base):
+    """One candidate-versus-baseline gate on an exact immutable evidence set."""
+
+    __tablename__ = "shadow_executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    policy_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("regression_policies.id", ondelete="RESTRICT"), nullable=False)
+    baseline_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    candidate_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricPromotion(Base):
+    """An auditable, one-time activation authorized by a PASS shadow run."""
+
+    __tablename__ = "metric_promotions"
+    __table_args__ = (UniqueConstraint("shadow_execution_id", name="uq_metric_promotion_shadow_execution"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    metric_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metrics.id", ondelete="RESTRICT"), nullable=False)
+    candidate_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    previous_definition_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"))
+    shadow_execution_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("shadow_executions.id", ondelete="RESTRICT"), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class DecisionReceipt(Base):
+    """Immutable platform evidence for one completed four-way replay."""
+
+    __tablename__ = "decision_receipts"
+    __table_args__ = (UniqueConstraint("replay_job_id", name="uq_decision_receipt_replay"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    replay_job_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("replay_jobs.id", ondelete="RESTRICT"), nullable=False)
+    integrity_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MetricLineageSnapshot(Base):
+    """Verified static dependency evidence for exact metric and dataset versions."""
+
+    __tablename__ = "metric_lineage_snapshots"
+    __table_args__ = (UniqueConstraint("definition_id", "dataset_version_id", name="uq_metric_lineage_snapshot"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id", ondelete="RESTRICT"), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -168,6 +291,15 @@ class ReplayCell(Base):
 Index("idx_workspace_members_user", WorkspaceMember.user_id)
 Index("idx_metric_sources_workspace", MetricSource.workspace_id)
 Index("idx_dataset_versions_source_capture", DatasetVersion.source_id, DatasetVersion.captured_at)
+Index("idx_cdc_checkpoints_workspace", CdcCheckpoint.workspace_id)
 Index("idx_metrics_workspace", Metric.workspace_id)
+Index("idx_metric_contracts_workspace_name", MetricContract.workspace_id, MetricContract.name)
+Index("idx_contract_evaluations_workspace_created", ContractEvaluation.workspace_id, ContractEvaluation.created_at)
+Index("idx_contract_evaluations_contract_created", ContractEvaluation.contract_id, ContractEvaluation.created_at)
+Index("idx_regression_policies_workspace_name", RegressionPolicy.workspace_id, RegressionPolicy.name)
+Index("idx_shadow_executions_workspace_created", ShadowExecution.workspace_id, ShadowExecution.created_at)
+Index("idx_metric_promotions_workspace_created", MetricPromotion.workspace_id, MetricPromotion.created_at)
+Index("idx_decision_receipts_workspace_created", DecisionReceipt.workspace_id, DecisionReceipt.created_at)
+Index("idx_metric_lineage_workspace_created", MetricLineageSnapshot.workspace_id, MetricLineageSnapshot.created_at)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
 Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

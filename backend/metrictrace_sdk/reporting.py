@@ -28,6 +28,34 @@ def _canonical(value: object) -> bytes:
     )
 
 
+def create_platform_decision_receipt(payload: dict) -> dict:
+    """Attach an integrity digest to persisted platform evidence, never a signature."""
+    if not isinstance(payload, dict) or payload.get("schema_version") != "1.0":
+        raise ValueError("Platform decision receipts require schema version 1.0.")
+    receipt = dict(payload)
+    receipt["integrity_sha256"] = hashlib.sha256(_canonical(receipt)).hexdigest()
+    return receipt
+
+
+def verify_platform_decision_receipt(receipt: dict) -> dict[str, object]:
+    """Verify receipt content integrity; this does not authenticate an author."""
+    if not isinstance(receipt, dict):
+        return {"valid": False, "integrity_valid": False, "missing_fields": ["receipt"]}
+    required = {"schema_version", "replay_id", "cells", "attribution", "integrity_sha256"}
+    missing = sorted(required - set(receipt))
+    digest = receipt.get("integrity_sha256")
+    unsigned = {key: value for key, value in receipt.items() if key != "integrity_sha256"}
+    integrity_valid = isinstance(digest, str) and digest == hashlib.sha256(_canonical(unsigned)).hexdigest()
+    attribution = receipt.get("attribution", {})
+    return {
+        "valid": not missing and integrity_valid and attribution.get("reconciles") is True,
+        "integrity_valid": integrity_valid,
+        "reconciliation_valid": attribution.get("reconciles") is True,
+        "missing_fields": missing,
+        "note": "SHA-256 checks receipt integrity; it is not an authenticated signature.",
+    }
+
+
 def _sha256_path(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -154,6 +182,59 @@ def verify_report(report: dict) -> dict[str, object]:
         "reconciliation_valid": reconciliation_valid,
         "complete_cells": complete_cells,
         "note": "Verification does not authenticate an author or rerun the original datasets.",
+    }
+
+
+def generate_investigation_report(report: dict) -> dict[str, object]:
+    """Render an evidence-bounded investigation brief from a verified replay.
+
+    This intentionally does not call an AI model.  Every finding points to a
+    value already present in the integrity-checked report, so agent hosts can
+    add their own narrative without being given unsupported causal claims.
+    """
+    verification = verify_report(report)
+    if not verification["valid"]:
+        raise ValueError("Investigation reports require a structurally complete, verified replay report.")
+    attribution = report["replay"]["attribution"]
+    compatibility = report["schemas"]["compatibility"]
+    findings = [
+        {
+            "kind": kind,
+            "value": attribution[key],
+            "evidence_path": f"replay.attribution.{key}",
+        }
+        for kind, key in (
+            ("observed_total_change", "total_change"),
+            ("symmetric_data_contribution", "data_contribution"),
+            ("symmetric_definition_contribution", "definition_contribution"),
+            ("interaction_diagnostic", "interaction_effect"),
+        )
+    ]
+    return {
+        "schema_version": "1.0",
+        "status": "VERIFIED",
+        "report_integrity_sha256": report["integrity_sha256"],
+        "verification": verification,
+        "findings": findings,
+        "schema_compatibility": {
+            "compatible": compatibility.get("compatible"),
+            "evidence_path": "schemas.compatibility",
+        },
+        "recommended_checks": [
+            {
+                "question": "Which declared data change explains the observed data contribution?",
+                "evidence_boundary": "The receipt quantifies contribution but does not establish cause.",
+            },
+            {
+                "question": "Does the interaction diagnostic warrant a segment-level replay?",
+                "evidence_boundary": "The interaction is a numerical diagnostic, not an ownership finding.",
+            },
+        ],
+        "limitations": [
+            "Findings are deterministic restatements of the verified replay evidence.",
+            "This report does not authenticate an author, prove source-system custody, or establish causality.",
+            "No rows, local paths, credentials, or external AI services are included or contacted.",
+        ],
     }
 
 

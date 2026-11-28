@@ -60,3 +60,22 @@ async def test_worker_interruption_retries_then_exhausts_without_reclaiming_term
         await queue.fail(job.id, "recovery-worker", second.fencing_token, "worker_interrupted", "terminated again")
         assert job.status == "FAILED"
         assert await queue.claim("third-worker") is None
+
+
+@pytest.mark.asyncio
+async def test_cancelled_job_fences_a_worker_that_already_claimed_it(client):
+    from app.models.database import get_sessionmaker
+
+    async with get_sessionmaker()() as db:
+        workspace = Workspace(name="cancellation fencing test")
+        db.add(workspace)
+        await db.flush()
+        queue = DurableJobQueue(db, lease_seconds=5)
+        job = await queue.enqueue(workspace.id, "SNAPSHOT_CAPTURE", {"source_id": "x"}, "capture:cancel")
+        claimed = await queue.claim("worker-a")
+        assert claimed is not None
+
+        await queue.cancel(job)
+        assert job.status == "CANCELLED"
+        with pytest.raises(StaleLeaseError):
+            await queue.succeed(job.id, "worker-a", claimed.fencing_token, {"published": True})

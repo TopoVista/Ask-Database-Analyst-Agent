@@ -25,16 +25,18 @@ licenses and notices remain unchanged.
 | Area | Status | Evidence / limitation |
 | --- | --- | --- |
 | Lite local replay, CLI, SDK and MCP | COMPLETE | Existing 0.1.0 artifacts were locally validated before this roadmap continuation. |
-| Four-way replay queue foundation and Replay Lab | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. Replay Lab now discovers the authenticated workspace without fixture creation; it selects authorized source/version/metric/definition pairs, enforces same-source and same-metric compatibility in both client and service layers, submits asynchronously, stores replay IDs in the URL, polls authoritative cell-level state through refreshes, represents queued/running/retryable/failed/cancelled states, supports authorized cancellation, and withholds attribution until all four cells complete. PostgreSQL multi-worker experiments and browser E2E validation have not run. |
-| PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. Owner-configured bounded intervals now enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
-| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
+| Four-way replay queue foundation and Replay Lab | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. Replay Lab now discovers the authenticated workspace without fixture creation; it selects authorized source/version/metric/definition pairs, enforces same-source and same-metric compatibility in both client and service layers, submits asynchronously, stores replay IDs in the URL, polls authoritative cell-level state through refreshes, represents queued/running/retryable/failed/cancelled states, supports authorized cancellation, and withholds attribution until all four cells complete. This was committed and pushed as `b9e951d`. PostgreSQL multi-worker experiments and browser E2E validation have not run. |
+| PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. The Data Sources workspace now lists tenant-scoped source/version history, performs bounded catalog discovery on an authorized PostgreSQL connection, classifies each table with the same compatibility rules as capture, registers selected tables, explicitly queues captures, and polls durable capture status. Owner-configured bounded intervals enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
+| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. The S3-compatible adapter has protocol-level coverage for MinIO-style endpoint configuration, workspace isolation, immutable duplicate rejection, streamed file metadata, hash verification, paginated attempt listing, and exact generated-attempt cleanup. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. A live MinIO container/service run remains environment-gated. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
-| Dataset diff | PARTIAL | Shared Lite engine now compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The `dataset-diff-inspector` skill now documents the shared CLI and passes SKILL validation. Platform API/UI, historical-snapshot input and a tested marketplace ZIP remain unimplemented. |
-| Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The `metric-contract-guardian` commercial skill now invokes this engine and passes SKILL validation. Platform persistence/UI and a release ZIP remain unimplemented. |
-| SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The `metric-regression-investigator` commercial skill now invokes this engine and passes SKILL validation. Platform shadow runs, promotion gates, persisted contracts and a release ZIP remain unimplemented. |
-| Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The `sql-join-auditor` skill now documents the shared CLI and passes SKILL validation. Platform API/UI and a tested marketplace ZIP remain unimplemented. |
-| Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. This is not persisted platform lineage, database-catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
-| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. Platform receipt persistence, dataset-version identifiers, contract outcomes, signing, retention state, and remote re-execution remain unimplemented. |
+| Dataset diff | PARTIAL | Shared Lite engine compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The platform now adapts tenant-owned immutable version IDs—not user paths or storage keys—to that same engine, materializes one authorized Parquet object per version into bounded private temporary files, requires explicit table choice for multi-table captures, and exposes the result through the Dataset Diff workspace. The `dataset-diff-inspector` skill documents the shared CLI and passes SKILL validation. Historical multi-table capture comparison and marketplace ZIP validation remain untested against live PostgreSQL/MinIO infrastructure. |
+| Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The platform now has tenant-scoped immutable contract-definition versions, explicit historical evaluation actions, durable evidence records bound to exact dataset content hashes and definition hashes, and a Contracts workspace to save/evaluate/view real outcomes. It delegates execution to the shared engine and accepts no user file paths. Shadow execution, transactional promotions, stale-approval fencing, and a release ZIP remain unimplemented. |
+| SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The platform exposes the same engine through a tenant-scoped immutable-version API with optional multi-table selection and typed parameters; client paths cannot be supplied. The SQL Regression workspace selects evidence, evaluates baseline/candidate SQL, and renders actual gate outcomes, timings, normalized SQL, and evidence fingerprints. Immutable named regression-policy versions and shadow executions bind the policy hash, exact baseline/candidate definition versions, immutable dataset content hash, gate report, and optional required contract report; a gate cannot pass when its required contract fails. A one-time PASS shadow record can atomically activate only its exact candidate, supersede the prior active definition, and produce a durable promotion receipt while rejecting consumed, FAIL, non-candidate, or stale policy/contract/dataset bindings. The Shadow Runs workspace creates policies, selects authenticated immutable inputs, runs gates, displays retained evidence, and makes the explicit one-time promotion action. A locally validated, deterministic single-skill SQL Regression Guardian package now embeds the shared engine instead of requiring an external MetricTrace install; it remains unsubmitted. |
+| Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The platform exposes a tenant-scoped immutable-version API that materializes only manifest-declared tables under deterministic SQL names before delegating to the shared engine. The SQL Join Auditor workspace selects historical inputs and displays observed join/unmatched/duplicate evidence, aggregate-amplification warnings, and explicit uncertainty. The `sql-join-auditor` skill documents the shared CLI and passes SKILL validation. A tested marketplace ZIP remains unimplemented. |
+| Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. The platform can persist an idempotent lineage snapshot bound to an exact metric-definition version and immutable dataset version; it derives the allowed tables from the snapshot manifest and records both definition and dataset content hashes. The Lineage workspace selects those authoritative inputs and presents a dependency graph, output evidence, transformations, and declared uncertainty. This is not catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
+| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. The same verified receipt now produces a deterministic investigation brief with field-level evidence paths, numerical findings, and explicit non-causality/custody limitations; it is exposed through the local CLI and stdio MCP without an AI key or external call. The platform persists one receipt per completed replay with all four cell execution fingerprints, immutable dataset/definition identifiers and hashes, attribution, canonical SHA-256 integrity digest, and tenant-scoped retrieval/verification. It attaches the latest prior persisted contract evaluation for each replayed dataset, retaining contract hashes and explicit outcomes; the Decision Receipts workspace presents this evidence alongside integrity state and limitations. Receipt retrieval now reports per-cell dataset/definition availability, including missing or hash-mismatched retained metadata, without claiming source-system retention or custody. Verification explicitly does not claim authenticated authorship. Remote re-execution remains unimplemented. |
+| Bitemporal capture metadata | PARTIAL | PostgreSQL captures now retain the database MVCC snapshot timestamp as source knowledge time, Platform dataset versions retain source-snapshot and system-recorded times, and a source may explicitly declare date/timestamp business-valid-from/to columns. The bounds for declared valid-time columns are calculated inside the same read-only repeatable-read snapshot and recorded in the immutable manifest and version metadata. This is capture-time bitemporal evidence, not CDC, row-level temporal querying, or logical decoding; those remain unimplemented. |
+| CDC validation core | PARTIAL | The shared deterministic core now validates bounded PostgreSQL logical-decoding event metadata: `INSERT`/`UPDATE`/`DELETE` operations, PostgreSQL hexadecimal LSN format, nondecreasing commit ordering, transaction identifiers, duplicate event IDs, and durable-checkpoint acknowledgement values. It is exposed through the JSON-first Lite CLI and stdio MCP. It deliberately neither creates replication slots nor reads WAL nor applies changes to snapshots; a transport/persistence adapter and explicit external replication authorization remain required. |
 
 ## Validation baseline
 
@@ -69,18 +71,194 @@ Validation after the Replay Lab integration (pending its cohesive commit):
   The command runner returned while Next retained child processes, so this is
   recorded as artifact confirmation rather than a captured clean exit line.
 
+Validation after PostgreSQL catalog discovery and Data Sources UI (pending its cohesive commit):
+
+- Capture and MetricTrace API tests: `8 passed, 1 skipped in 6.25s`
+  (`app/tests/test_postgres_capture.py`, `app/tests/test_metrictrace.py`). The
+  skipped MVCC test requires `METRICTRACE_TEST_POSTGRES_URL`.
+- Scoped Ruff and `git diff --check`: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors. `npm run
+  build` was started and produced the optimized-build stage; its child process
+  outlived the command output window, so a clean build exit is not claimed
+  until its final artifact is observed.
+
+Validation after Dataset Diff platform integration (pending its cohesive commit):
+
+- Dataset Diff, capture, and MetricTrace API tests: `14 passed, 1 skipped in
+  7.58s` (`app/tests/test_dataset_diff.py`, `app/tests/test_postgres_capture.py`,
+  `app/tests/test_metrictrace.py`). The skipped MVCC test requires
+  `METRICTRACE_TEST_POSTGRES_URL`.
+- Scoped Ruff, frontend TypeScript, and frontend lint: passed with no warnings
+  or errors.
+
+Validation after SQL Regression platform API integration (pending its cohesive
+commit):
+
+- MetricTrace SQL regression and shared regression tests: `10 passed in
+  13.52s` (`app/tests/test_metrictrace.py`, `app/tests/test_regression.py`).
+- Scoped Ruff and `git diff --check`: passed.
+- The SQL Regression workspace passes frontend TypeScript and lint without
+  warnings. Its production build compiled and completed, with a fresh
+  `.next/BUILD_ID` observed; the command runner does not retain the child exit
+  code for a stronger assertion.
+
+Validation after Join Auditor platform API integration (pending its cohesive
+commit):
+
+- MetricTrace Join Auditor and shared engine tests: `11 passed in 13.30s`
+  (`app/tests/test_metrictrace.py`, `app/tests/test_join_audit.py`).
+- Scoped Ruff: passed.
+- The SQL Join Auditor workspace passes frontend TypeScript and lint.
+
+Validation after Metric Contract Guardian platform integration:
+
+- Contract API and shared evaluator tests: `13 passed in 14.51s`
+  (`app/tests/test_metrictrace.py`, `app/tests/test_contracts.py`). This covers
+  immutable definition version increments, persisted evidence, PASS outcomes,
+  listing the last evaluation, and cross-workspace denial.
+- Scoped Ruff over the changed models, service, API, schema, migration, and
+  tests: passed.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `009_add_metric_contracts`: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors.
+- Frontend production build compiled successfully and entered Next.js type
+  validation; the runner returned before its child process yielded a final
+  exit line, so a full clean build exit is not claimed.
+
+Validation after persisted shadow execution gates:
+
+- Shadow, contract, and shared SQL-regression tests: `16 passed in 20.29s`
+  (`app/tests/test_metrictrace.py`, `app/tests/test_regression.py`,
+  `app/tests/test_contracts.py`). This includes a persisted FAIL gate using
+  the canonical `300000` absolute difference against a `250000` policy.
+- Scoped Ruff over the changed core, platform service/API/models/schemas,
+  migration, and tests: passed.
+
+Validation after transactional metric promotion:
+
+- Shadow, promotion, contract, and shared SQL-regression tests: `17 passed in
+  19.08s` (`app/tests/test_metrictrace.py`, `app/tests/test_regression.py`,
+  `app/tests/test_contracts.py`). This covers FAIL-evidence rejection and
+  single-use PASS-evidence promotion.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `011_add_metric_promotions`: passed.
+- Scoped Ruff over changed platform models/service/API/schemas, migration,
+  and tests: passed.
+
+Validation after Shadow Runs workspace:
+
+- Frontend TypeScript and lint: passed with no warnings or errors.
+- Frontend production build compiled, type-checked, collected page data, and
+  produced a fresh `.next/BUILD_ID`; the command runner did not preserve a
+  final clean child-process exit line.
+
+Validation after persisted decision receipts:
+
+- Focused platform receipt test: `1 passed in 1.26s`
+  (`app/tests/test_metrictrace.py::test_decision_receipt_persists_and_verifies_completed_replay`).
+- Scoped Ruff over the receipt core, platform models/service/API, migration,
+  and test: passed.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `012_add_decision_receipts`: passed.
+
+Validation after Decision Receipts workspace:
+
+- Frontend TypeScript and lint: passed with no warnings or errors.
+
+Validation after receipt contract-evidence binding:
+
+- Receipt tests: `2 passed in 2.90s` (`app/tests/test_metrictrace.py` receipt
+  cases), covering the no-contract case and persisted PASS contract evidence.
+- Scoped Ruff over the changed receipt service and tests: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors.
+
+Validation after receipt evidence-availability reporting:
+
+- Receipt tests: `2 passed in 2.94s`; scoped Ruff: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors.
+
+Validation after version-bound lineage snapshots:
+
+- Lineage snapshot plus shared lineage tests: `4 passed in 2.23s`.
+- Scoped Ruff: passed.
+- A fresh SQLite Alembic upgrade ran through
+  `013_add_metric_lineage_snapshots`: passed.
+
+Validation after Lineage workspace:
+
+- Frontend TypeScript and lint: passed with no warnings or errors.
+
+Commercial packaging recheck on 2026-11-28:
+
+- Current official Agensi terms and packaging guidance were rechecked and
+  recorded in `release/agensi/MARKETPLACE_RECHECK_2026-11-28.md`.
+- No SQL Regression Guardian ZIP was generated because the current instructions
+  depend on externally installed `metrictrace-lite`, which is not compatible
+  with documented isolated-script delivery. No listing was submitted.
+
+Commercial SQL Regression Guardian package update on 2026-11-28:
+
+- The first distributable commercial skill now has a generated self-contained
+  runner built from the same MetricTrace deterministic source used by the SDK
+  and platform. It accepts an explicitly authorized single CSV/Parquet input
+  as `source_data`; no MetricTrace installation, service, AI key, or network
+  access is required.
+- `release/sql-regression-guardian-0.2.0.zip` was locally built and inspected
+  with seven expected text/source files and no detected credential pattern,
+  external link, binary/environment file, or off-platform routing.
+- The extracted runner reproduced the known 300,000 absolute difference and
+  exited `3` for the configured gate. Its checksum is recorded in
+  `release/SHA256SUMS-sql-regression-guardian-0.2.0.txt`.
+- The package has not been uploaded, submitted, approved, published, priced,
+  or sold. It remains subject to a current manual marketplace packaging recheck.
+
+Validation after deterministic investigation reporting:
+
+- SDK receipt, reproduction, CLI, and stdio MCP protocol tests: `12 passed,
+  1 skipped in 16.40s` on Windows Python 3.11. The existing skipped test
+  requires Windows symlink permission.
+- Scoped Ruff over the reporting core, CLI, MCP server, and tests: passed.
+
+Validation after S3-compatible storage and worker fencing coverage:
+
+- Snapshot storage, S3-compatible protocol adapter, durable queue, and replay
+  worker tests: `10 passed in 7.37s` on Windows Python 3.11.
+- The S3 test double covers the MinIO-relevant API behavior without requiring
+  credentials, an external endpoint, or Docker. A live MinIO service remains
+  unvalidated.
+- Scoped Ruff over storage, queue, worker, and tests: passed.
+
+Validation after bitemporal capture metadata:
+
+- PostgreSQL capture, capture scheduler, and MetricTrace API tests: `20
+  passed, 1 skipped in 25.44s` on Windows Python 3.11. The skipped MVCC test
+  still requires an explicitly authorized disposable PostgreSQL URL.
+- A fresh SQLite Alembic upgrade completed through
+  `014_add_bitemporal_snapshot_metadata`.
+- Scoped Ruff over the capture adapter, API/schema/service/model changes,
+  migration, and capture tests: passed.
+
+Validation after CDC batch validation core:
+
+- CDC validation, local report, and CLI tests: `13 passed, 1 skipped in
+  10.90s` on Windows Python 3.11. The existing skip requires Windows symlink
+  permission.
+- Scoped Ruff over the CDC core, CLI, and tests: passed.
+- MCP protocol validation including the CDC tool: `3 passed in 5.29s`.
+
 ## Delivery note
 
-The current branch is `codex/metrictrace-foundations`. Validated work is
-pushed to its origin branch. No work has been deployed, published, submitted,
-or monetized.
+The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
+pushed. The subsequent validated `cc6c606` checkpoint is locally committed,
+but Git Credential Manager stalled before it could authenticate a push; the
+promotion checkpoint is also local pending that external authentication path.
+No work has been deployed, published, submitted, or monetized.
 
 ## Exact next executable task
 
-Inspect the PostgreSQL capture adapter and connection workflow, then implement
-the missing product-facing source discovery/table-selection and capture-status
-flow. In parallel, run the environment-gated PostgreSQL MVCC test against a
-disposable instance (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials
-or Docker become available; then perform multi-worker failure experiments
-(claim contention, lease expiry, stale publication rejection and worker
-termination).
+Run the environment-gated PostgreSQL MVCC test against a disposable instance
+(`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
+available. Meanwhile, add a platform CDC checkpoint persistence adapter with
+explicit operator-controlled ingestion (but no replication-slot creation), and
+add a real multi-session PostgreSQL worker-contention test when an authorized
+test database is available.

@@ -8,8 +8,9 @@ description: Execute an evidence-backed SQL metric regression check over user-au
 Use this skill to reproduce a claimed SQL metric regression. It executes the
 baseline and candidate definitions against the same explicitly authorized
 local files; it does not infer semantic impact from a text diff. It requires
-Python 3.11+, `metrictrace-lite`, and CSV or Parquet inputs. It requires no AI
-API key, hosted MetricTrace account, Docker daemon, or network service.
+Python 3.11+, the included standalone runner, DuckDB, SQLGlot, and CSV or
+Parquet inputs. It requires no AI API key, hosted MetricTrace account, Docker
+daemon, or network service.
 
 ## Activation and boundaries
 
@@ -24,9 +25,8 @@ modify SQL, datasets, a database, a pull request, or a production metric.
 
 ## Deterministic workflow
 
-1. Obtain one baseline SQL definition, one candidate definition, and either a
-   single file or a reviewed JSON table manifest. Keep the manifest limited to
-   the logical tables used by the definitions.
+1. Obtain one baseline SQL definition, one candidate definition, and one
+   approved CSV or Parquet file. The runner exposes that file as `source_data`.
 2. Inspect schemas and validate both definitions when they are unfamiliar.
    Stop when a definition references an undeclared table or unsafe file/network
    function.
@@ -41,17 +41,18 @@ modify SQL, datasets, a database, a pull request, or a production metric.
 ## Invocation
 
 ```bash
-metrictrace regression-check \
-  --manifest datasets.json \
+python scripts/run_regression.py \
+  --dataset orders.csv \
   --baseline-sql-file metric_before.sql \
   --candidate-sql-file metric_after.sql \
+  --allow-root . \
   --max-absolute-difference 100 \
   --max-percent-difference 2.5
 ```
 
-`datasets.json` maps logical tables to files, for example
-`{"orders":"orders.csv","customers":"customers.parquet"}`. For a
-single table, use `--dataset orders.csv`; that table is named `source_data`.
+The standalone commercial runner intentionally supports one explicitly
+authorized source file. SQL must refer to it as `source_data`; multi-table
+manifests and remote execution are not supported in this distribution.
 
 Exit code `0` means all explicit gates passed. Exit code `3` means a gate
 failed; `2` means invalid input; `4` means execution failed. Preserve the JSON
@@ -59,11 +60,10 @@ result rather than translating a failure into an unsupported conclusion.
 
 ## Supported execution modes
 
-- Local CLI: validated Windows Python 3.11 mode.
-- Local MCP: `check_local_sql_regression`, after setting
-  `METRICTRACE_ALLOWED_DATA_DIRS` to authorized roots.
-- Remote MetricTrace execution is not implemented for this skill. Do not
-  substitute a remote API call or claim remote compatibility.
+- Standalone local Python script: validated on Windows Python 3.11 with
+  `duckdb==1.1.3` and `sqlglot==25.31.4` installed by the buyer.
+- Agent hosts that can run local Python and read `SKILL.md` may invoke the
+  script. Do not claim MCP, remote, CI-hosted, Linux, or macOS compatibility.
 
 ## Error handling and security
 

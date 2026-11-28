@@ -13,6 +13,7 @@ from pathlib import Path
 from metrictrace_sdk import __version__
 from metrictrace_sdk.core import four_way_attribution, validate_metric_sql
 from metrictrace_sdk.contracts import ContractError, evaluate_contracts
+from metrictrace_sdk.cdc import CdcError, validate_cdc_batch
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets, dataset_diff_markdown
 from metrictrace_sdk.regression import RegressionError, check_sql_regression
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
@@ -23,7 +24,13 @@ from metrictrace_sdk.local_replay import (
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, markdown_report, reproduce_report, verify_report
+from metrictrace_sdk.reporting import (
+    create_report,
+    generate_investigation_report,
+    markdown_report,
+    reproduce_report,
+    verify_report,
+)
 
 EXIT_OK, EXIT_USAGE, EXIT_REMOTE, EXIT_POLICY, EXIT_RESOURCE, EXIT_EXECUTION = range(6)
 
@@ -231,6 +238,14 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-report", help="Verify report integrity and numerical reconciliation"
     )
     verify.add_argument("--report", required=True)
+    investigation = sub.add_parser(
+        "investigation-report",
+        help="Generate a deterministic evidence-grounded brief from a verified replay report",
+    )
+    investigation.add_argument("--report", required=True)
+    cdc = sub.add_parser("cdc-validate", help="Validate ordered PostgreSQL logical-decoding event metadata")
+    cdc.add_argument("--events", required=True, help="JSON array of bounded CDC event metadata")
+    cdc.add_argument("--checkpoint-lsn")
     reproduce = sub.add_parser(
         "reproduce-report", help="Re-execute authorized local evidence for a supplied replay report"
     )
@@ -347,6 +362,17 @@ def main(argv: list[str] | None = None) -> int:
                 {"ok": verdict["valid"], "verification": verdict},
                 EXIT_OK if verdict["valid"] else EXIT_EXECUTION,
             )
+        if args.command == "investigation-report":
+            investigation = generate_investigation_report(
+                json.loads(Path(args.report).read_text(encoding="utf-8"))
+            )
+            return _emit({"ok": True, "investigation": investigation})
+        if args.command == "cdc-validate":
+            raw_events = json.loads(Path(args.events).read_text(encoding="utf-8"))
+            if not isinstance(raw_events, list):
+                raise CdcError("--events must contain a JSON array.")
+            result = validate_cdc_batch(raw_events, args.checkpoint_lsn)
+            return _emit({"ok": True, "cdc": result})
         if args.command == "reproduce-report":
             report = json.loads(Path(args.report).read_text(encoding="utf-8"))
             verdict = reproduce_report(
@@ -433,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             EXIT_USAGE,
         )
-    except (ValueError, LocalReplayError, DatasetDiffError, ContractError, RegressionError, JoinAuditError, LineageError) as exc:
+    except (ValueError, LocalReplayError, DatasetDiffError, ContractError, RegressionError, JoinAuditError, LineageError, CdcError) as exc:
         message = str(exc)
         code = EXIT_RESOURCE if "limit" in message or "terminated" in message else EXIT_POLICY
         return _emit(

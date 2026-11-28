@@ -13,6 +13,8 @@ instructional and marketplace materials listed below are commercially licensed
 through the applicable marketplace buyer terms:
 
 - `skills/historical-metric-debugger/SKILL.md` and its original supporting materials;
+- `skills/metric-regression-investigator/SKILL.md`, `README.md`, `LISTING.md`,
+  and `COMMERCIAL_NOTICE.md`;
 - `release/agensi_candidate/SKILL.md`, `README.md`, and `COMMERCIAL_NOTICE.md`;
 - listing, pricing, and marketplace copy under `release/agensi/`.
 

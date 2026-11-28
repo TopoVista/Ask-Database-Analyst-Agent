@@ -28,9 +28,12 @@ from app.infrastructure.storage.snapshot_store import SnapshotStore
 class CaptureTable:
     schema: str
     table: str
+    valid_from_column: str | None = None
+    valid_to_column: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.schema or not self.table or "\x00" in self.schema + self.table:
+        names = [self.schema, self.table, self.valid_from_column or "", self.valid_to_column or ""]
+        if not self.schema or not self.table or "\x00" in "".join(names):
             raise ValueError("A PostgreSQL table must have non-empty schema and table names.")
 
     @property
@@ -70,6 +73,7 @@ class CapturedSnapshot:
     row_count: int
     byte_size: int
     schema: dict[str, Any]
+    source_snapshot_at: datetime | None
 
 
 _TYPE_MAP = {
@@ -136,6 +140,7 @@ class PostgresSnapshotCapture:
             # This first statement fixes the PostgreSQL transaction snapshot
             # before catalog discovery or any table cursor begins.
             snapshot_id = await connection.fetchval("SELECT txid_current_snapshot()")
+            source_snapshot_at = await connection.fetchval("SELECT CURRENT_TIMESTAMP")
             await connection.execute("SELECT set_config('statement_timeout', $1, true)", str(self.limits.timeout_seconds * 1000))
             table_manifests: list[dict[str, Any]] = []
             total_rows = total_bytes = 0
@@ -144,6 +149,7 @@ class PostgresSnapshotCapture:
                 for index, selected in enumerate(tables):
                     self._ensure_deadline(started)
                     metadata = await self._table_metadata(connection, selected)
+                    temporal_bounds = await self._temporal_bounds(connection, selected, metadata["columns"])
                     local_path, row_count, arrow_schema = await self._stream_table(
                         connection, selected, metadata["columns"], temp_dir / f"{index}.parquet", started
                     )
@@ -163,6 +169,7 @@ class PostgresSnapshotCapture:
                         "arrow_schema": str(arrow_schema),
                         "object": {"key": object_key, "sha256": object_metadata.sha256, "bytes": object_metadata.size_bytes},
                         "row_count": row_count,
+                        "valid_time": temporal_bounds,
                     })
                     if self._after_table_captured is not None:
                         await self._after_table_captured(selected)
@@ -171,6 +178,7 @@ class PostgresSnapshotCapture:
                     "consistency_level": "postgresql_repeatable_read",
                     "captured_at": datetime.now(timezone.utc).isoformat(),
                     "source_snapshot": str(snapshot_id),
+                    "source_snapshot_at": self._timestamp(source_snapshot_at),
                     "source_id": str(source_id),
                     "attempt_id": str(attempt_id),
                     "row_count": total_rows,
@@ -191,6 +199,7 @@ class PostgresSnapshotCapture:
                 row_count=total_rows,
                 byte_size=total_bytes,
                 schema={"tables": table_manifests},
+                source_snapshot_at=source_snapshot_at if isinstance(source_snapshot_at, datetime) else None,
             )
         except SnapshotCaptureError:
             if connection is not None:
@@ -207,6 +216,65 @@ class PostgresSnapshotCapture:
                 await self._safe_rollback(connection)
             self._cleanup_staging(workspace_id, prefix)
             raise SnapshotCaptureError("source_or_storage_error", str(exc)) from exc
+        finally:
+            if connection is not None:
+                await connection.close()
+
+    async def discover_tables(self, connection_string: str) -> list[dict[str, Any]]:
+        """Return a bounded catalog view without reading table data.
+
+        Discovery deliberately uses the same type validation as capture.  A
+        table with an unsupported capture type is disclosed as unavailable,
+        rather than allowing it to be selected and failing after an expensive
+        source read has begun.
+        """
+        connect = self._connect or self._asyncpg_connect
+        connection = None
+        try:
+            connection = await connect(_driver_dsn(connection_string))
+            transaction = connection.transaction(readonly=True)
+            await transaction.start()
+            table_rows = await connection.fetch(
+                """SELECT table_schema, table_name
+                   FROM information_schema.tables
+                   WHERE table_type = 'BASE TABLE'
+                     AND table_schema NOT IN ('pg_catalog', 'information_schema')
+                   ORDER BY table_schema, table_name
+                   LIMIT $1""",
+                self.limits.max_tables,
+            )
+            discovered: list[dict[str, Any]] = []
+            for row in table_rows:
+                table = CaptureTable(schema=row["table_schema"], table=row["table_name"])
+                try:
+                    metadata = await self._table_metadata(connection, table)
+                    discovered.append({
+                        "schema": table.schema,
+                        "table": table.table,
+                        "primary_key": metadata["primary_key"],
+                        "columns": metadata["columns"],
+                        "capture_supported": True,
+                        "unsupported_reason": None,
+                    })
+                except SnapshotCaptureError as exc:
+                    discovered.append({
+                        "schema": table.schema,
+                        "table": table.table,
+                        "primary_key": [],
+                        "columns": [],
+                        "capture_supported": False,
+                        "unsupported_reason": str(exc),
+                    })
+            await transaction.commit()
+            return discovered
+        except SnapshotCaptureError:
+            if connection is not None:
+                await self._safe_rollback(connection)
+            raise
+        except Exception as exc:
+            if connection is not None:
+                await self._safe_rollback(connection)
+            raise SnapshotCaptureError("catalog_discovery_failed", str(exc)) from exc
         finally:
             if connection is not None:
                 await connection.close()
@@ -258,6 +326,31 @@ class PostgresSnapshotCapture:
             table.schema, table.table,
         )]
         return {"columns": columns, "primary_key": primary_key, "foreign_keys": foreign_keys}
+
+    async def _temporal_bounds(self, connection: Any, table: CaptureTable, columns: list[dict[str, Any]]) -> dict[str, Any] | None:
+        configured = [("valid_from", table.valid_from_column), ("valid_to", table.valid_to_column)]
+        configured = [(label, name) for label, name in configured if name]
+        if not configured:
+            return None
+        types = {str(column["column_name"]): str(column["data_type"]) for column in columns}
+        allowed = {"date", "timestamp without time zone", "timestamp with time zone"}
+        for _, name in configured:
+            if name not in types or types[name] not in allowed:
+                raise SnapshotCaptureError("invalid_valid_time", f"{table.identity} valid-time column {name!r} must be a captured date/timestamp column.")
+        expressions = ", ".join(
+            f"MIN({_quote_identifier(name)}) AS {label}_min, MAX({_quote_identifier(name)}) AS {label}_max"
+            for label, name in configured
+        )
+        row = await connection.fetchrow(f"SELECT {expressions} FROM {_quote_identifier(table.schema)}.{_quote_identifier(table.table)}")
+        result = {"columns": {label: name for label, name in configured}}
+        for label, _ in configured:
+            result[f"{label}_min"] = self._timestamp(row.get(f"{label}_min")) if row else None
+            result[f"{label}_max"] = self._timestamp(row.get(f"{label}_max")) if row else None
+        return result
+
+    @staticmethod
+    def _timestamp(value: Any) -> str | None:
+        return value.isoformat() if isinstance(value, (datetime,)) else (value.isoformat() if hasattr(value, "isoformat") else None)
 
     async def _stream_table(self, connection: Any, table: CaptureTable, columns: list[dict[str, Any]], path: Path, started: float) -> tuple[Path, int, Any]:
         try:

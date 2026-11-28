@@ -339,3 +339,246 @@ export async function cancelReplay(replayId: string, token?: string | null) {
     method: "DELETE",
   });
 }
+
+export interface PostgresDiscoveredTable {
+  schema: string;
+  table: string;
+  primary_key: string[];
+  columns: Array<{ column_name: string; data_type: string; is_nullable: string }>;
+  capture_supported: boolean;
+  unsupported_reason: string | null;
+}
+
+export interface MetricSourceRead {
+  id: string;
+  name: string;
+  source_type: string;
+  connection_id: string | null;
+  capture_status: string;
+  tables: Array<{ schema: string; table: string }>;
+  schedule_seconds: number | null;
+  version_count: number;
+  latest_version_id: string | null;
+  latest_captured_at: string | null;
+}
+
+export async function discoverPostgresTables(input: { workspace_id: string; connection_id: string }, token?: string | null) {
+  return apiFetch<{ tables: PostgresDiscoveredTable[] }>("/api/v1/metrictrace/sources/postgresql/discover", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listMetricSources(workspaceId: string, token?: string | null) {
+  return apiFetch<{ sources: MetricSourceRead[] }>(`/api/v1/metrictrace/sources?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export async function createPostgresSource(input: {
+  workspace_id: string;
+  connection_id: string;
+  name: string;
+  tables: Array<{ schema: string; table: string }>;
+  schedule_seconds?: number;
+}, token?: string | null) {
+  return apiFetch<{ source_id: string; status: string; source_type: string }>("/api/v1/metrictrace/sources/postgresql", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function capturePostgresSource(sourceId: string, workspaceId: string, token?: string | null) {
+  return apiFetch<{ job_id: string; status: string; source_id: string }>(`/api/v1/metrictrace/sources/${encodeURIComponent(sourceId)}/captures?workspace_id=${encodeURIComponent(workspaceId)}`, token, {
+    method: "POST",
+  });
+}
+
+export async function getPostgresCapture(sourceId: string, jobId: string, workspaceId: string, token?: string | null) {
+  return apiFetch<{ job_id: string; source_id: string; status: string; error: { category: string; message: string } | null; result: { dataset_version_id?: string; row_count?: number } | null }>(`/api/v1/metrictrace/sources/${encodeURIComponent(sourceId)}/captures/${encodeURIComponent(jobId)}?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export interface DatasetDiffResult {
+  old_version_id: string;
+  new_version_id: string;
+  old_table: { schema: string; table: string } | null;
+  new_table: { schema: string; table: string } | null;
+  comparison: {
+    fingerprint: string;
+    schema_changes: Array<{ kind: string; column: string; old_type?: string; new_type?: string }>;
+    key_validation: Record<string, { duplicate_key_groups: number; null_key_rows: number }> | null;
+    summary: { mode: string; comparable: boolean; reason?: string; inserted?: number; deleted?: number; modified?: number; unchanged?: number };
+    records: Array<{ kind: string; key: Record<string, unknown>; changed_columns: string[]; old: Record<string, unknown>; new: Record<string, unknown> }>;
+  };
+}
+
+export async function compareDatasetVersions(input: {
+  workspace_id: string;
+  old_version_id: string;
+  new_version_id: string;
+  key_columns: string[];
+  old_table?: { schema: string; table: string };
+  new_table?: { schema: string; table: string };
+  limit?: number;
+  offset?: number;
+}, token?: string | null) {
+  return apiFetch<DatasetDiffResult>("/api/v1/metrictrace/dataset-diff", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface SqlRegressionResult {
+  dataset_version_id: string;
+  table: { schema: string; table: string } | null;
+  regression: {
+    status: "PASS" | "FAIL";
+    baseline: { value: string; duration_ms: number; normalized_sql: string };
+    candidate: { value: string; duration_ms: number; normalized_sql: string };
+    difference: { absolute: string; percent: string | null };
+    gates: Array<{ type: string; limit: string; actual: string | null; status: "PASS" | "FAIL" | "ERROR"; message?: string }>;
+    static_sql_changed: boolean;
+    fingerprint: string;
+  };
+}
+
+export async function checkSqlRegression(input: {
+  workspace_id: string;
+  dataset_version_id: string;
+  baseline_sql: string;
+  candidate_sql: string;
+  table?: { schema: string; table: string };
+  max_absolute_difference?: string;
+  max_percent_difference?: string;
+  parameters?: Record<string, string | number | boolean | null>;
+}, token?: string | null) {
+  return apiFetch<SqlRegressionResult>("/api/v1/metrictrace/sql-regression", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface JoinAuditResult {
+  dataset_version_id: string;
+  tables: Array<{ schema: string; table: string; sql_name: string }>;
+  audit: {
+    supported: boolean;
+    joins: Array<{ join_index: number; join_type: string; left: { table: string; columns: string[]; profile: { rows: number; distinct_non_null_keys: number; duplicate_key_groups: number; null_key_rows: number } }; right: { table: string; columns: string[]; profile: { rows: number; distinct_non_null_keys: number; duplicate_key_groups: number; null_key_rows: number } }; joined_rows: number; unmatched_left_rows: number; unmatched_right_rows: number; potential_aggregate_amplification: boolean; interpretation: string }>;
+    uncertainty: Array<{ join_index: number; reason: string }>;
+    aggregations: string[];
+  };
+}
+
+export async function auditSqlJoins(input: { workspace_id: string; dataset_version_id: string; sql: string }, token?: string | null) {
+  return apiFetch<JoinAuditResult>("/api/v1/metrictrace/join-audit", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface MetricContractRead {
+  id: string;
+  name: string;
+  version: number;
+  definition_hash: string;
+  contracts: Array<Record<string, unknown>>;
+  created_at: string;
+  latest_evaluation: ContractEvaluation | null;
+}
+
+export interface ContractEvaluation {
+  id: string;
+  status: "PASS" | "FAIL" | "ERROR";
+  dataset_version_id: string;
+  input_fingerprint: string;
+  report: {
+    dataset_content_hash: string;
+    tables: Array<{ schema: string; table: string; sql_name: string }>;
+    report: {
+      summary: Record<string, number | boolean>;
+      outcomes: Array<{ id: string; type: string; severity: string; status: "PASS" | "FAIL" | "ERROR" | "NOT_EVALUATED"; message: string; evidence: Record<string, unknown> }>;
+    };
+  };
+  created_at: string;
+}
+
+export async function listMetricContracts(workspaceId: string, token?: string | null) {
+  return apiFetch<{ contracts: MetricContractRead[] }>(`/api/v1/metrictrace/contracts?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export async function createMetricContract(input: { workspace_id: string; name: string; contracts: Array<Record<string, unknown>> }, token?: string | null) {
+  return apiFetch<{ contract: MetricContractRead }>("/api/v1/metrictrace/contracts", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function evaluateMetricContract(contractId: string, input: { workspace_id: string; dataset_version_id: string }, token?: string | null) {
+  return apiFetch<{ contract: MetricContractRead; evaluation: ContractEvaluation }>(`/api/v1/metrictrace/contracts/${encodeURIComponent(contractId)}/evaluations`, token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface ShadowExecutionResult {
+  id: string;
+  status: "PASS" | "FAIL";
+  policy_id: string;
+  input_fingerprint: string;
+  report: {
+    dataset_content_hash: string;
+    policy_hash: string;
+    regression: SqlRegressionResult["regression"];
+    required_contract: { id: string; definition_hash: string; report: ContractEvaluation["report"]["report"] } | null;
+  };
+}
+
+export async function createRegressionPolicy(input: {
+  workspace_id: string;
+  name: string;
+  max_absolute_difference?: string;
+  max_percent_difference?: string;
+  required_contract_id?: string;
+}, token?: string | null) {
+  return apiFetch<{ policy_id: string; version: number; definition_hash: string }>("/api/v1/metrictrace/regression-policies", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function executeShadowRun(input: {
+  workspace_id: string;
+  policy_id: string;
+  baseline_definition_id: string;
+  candidate_definition_id: string;
+  dataset_version_id: string;
+  table?: { schema: string; table: string };
+}, token?: string | null) {
+  return apiFetch<ShadowExecutionResult>("/api/v1/metrictrace/shadow-executions", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function promoteMetricDefinition(definitionId: string, input: { workspace_id: string; shadow_execution_id: string }, token?: string | null) {
+  return apiFetch<{ promotion_id: string; candidate_definition_id: string; previous_definition_id: string | null; evidence_fingerprint: string }>(`/api/v1/metrictrace/metric-definitions/${encodeURIComponent(definitionId)}/promotions`, token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface DecisionReceiptResult {
+  id: string;
+  replay_id: string;
+  integrity_sha256: string;
+  created_at: string;
+  verification: { valid: boolean; integrity_valid: boolean; reconciliation_valid: boolean; missing_fields: string[]; note: string };
+  evidence_availability: { status: "AVAILABLE" | "MISSING_EVIDENCE"; items: Array<{ cell: string; kind: "dataset" | "definition"; state: "AVAILABLE" | "MISSING" | "HASH_MISMATCH" }>; note: string };
+  receipt: { scope: string; replay_id: string; created_at: string; attribution: { total_change: string; reconciles: boolean }; cells: Record<string, { result: string; duration_ms: number; execution_fingerprint: string; definition: { id: string; sql_hash: string }; dataset: { id: string; content_hash: string } }>; contract_outcomes: Array<{ contract_id: string; definition_hash: string; dataset_version_id: string; status: string; outcomes: Array<{ id: string; status: string }> }>; limitations: string[] };
+}
+
+export async function createDecisionReceipt(replayId: string, token?: string | null) {
+  return apiFetch<DecisionReceiptResult>(`/api/v1/metrictrace/replays/${encodeURIComponent(replayId)}/decision-receipt`, token, { method: "POST" });
+}
+
+export async function getDecisionReceipt(receiptId: string, token?: string | null) {
+  return apiFetch<DecisionReceiptResult>(`/api/v1/metrictrace/decision-receipts/${encodeURIComponent(receiptId)}`, token);
+}
+
+export interface MetricLineageSnapshotResult {
+  id: string;
+  definition_id: string;
+  dataset_version_id: string;
+  fingerprint: string;
+  created_at: string;
+  lineage: {
+    source_tables: string[];
+    output_columns: Array<{ name: string; expression: string; source_columns: Array<{ relation: string | null; column: string; relation_kind: string }>; transformations: string[] }>;
+    uncertainty: Array<{ kind: string; detail: string }>;
+    binding: { definition_hash: string; dataset_content_hash: string; authorized_tables: string[] };
+  };
+}
+
+export async function snapshotMetricLineage(definitionId: string, input: { workspace_id: string; dataset_version_id: string }, token?: string | null) {
+  return apiFetch<MetricLineageSnapshotResult>(`/api/v1/metrictrace/metric-definitions/${encodeURIComponent(definitionId)}/lineage`, token, { method: "POST", body: JSON.stringify(input) });
+}

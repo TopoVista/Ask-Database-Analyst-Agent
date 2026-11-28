@@ -31,14 +31,14 @@ class _Connection:
     def __init__(self):
         self.events: list[str] = []
 
-    def transaction(self, *, isolation, readonly):
-        assert isolation == "repeatable_read"
+    def transaction(self, *, isolation=None, readonly):
+        assert isolation in {None, "repeatable_read"}
         assert readonly is True
         return _Transaction(self)
 
     async def fetchval(self, query):
         self.events.append(query)
-        return "1:1:"
+        return datetime(2026, 1, 1, tzinfo=timezone.utc) if "CURRENT_TIMESTAMP" in query else "1:1:"
 
     async def execute(self, query, *args):
         self.events.append(query)
@@ -91,12 +91,47 @@ async def test_capture_uses_one_readonly_repeatable_read_snapshot_and_verified_i
     assert connection.events[:3] == [
         "transaction:start:repeatable_read:readonly",
         "SELECT txid_current_snapshot()",
-        "SELECT set_config('statement_timeout', $1, true)",
+        "SELECT CURRENT_TIMESTAMP",
     ]
+    assert connection.events[3] == "SELECT set_config('statement_timeout', $1, true)"
     assert result.row_count == 2
     assert manifest["consistency_level"] == "postgresql_repeatable_read"
+    assert manifest["source_snapshot_at"] == "2026-01-01T00:00:00+00:00"
     assert manifest["tables"][0]["primary_key"] == ["id"]
     assert store.verify(workspace_id, manifest["tables"][0]["object"]["key"], manifest["tables"][0]["object"]["sha256"])
+
+
+@pytest.mark.asyncio
+async def test_capture_records_declared_valid_time_bounds_inside_same_snapshot(tmp_path):
+    class TemporalConnection(_Connection):
+        async def fetchrow(self, query):
+            assert 'MIN("valid_from")' in query
+            return {
+                "valid_from_min": datetime(2025, 1, 1, tzinfo=timezone.utc),
+                "valid_from_max": datetime(2025, 1, 31, tzinfo=timezone.utc),
+            }
+
+        async def fetch(self, query, schema, table):
+            columns = await super().fetch(query, schema, table)
+            if "information_schema.columns" in query:
+                columns.append({"column_name": "valid_from", "data_type": "timestamp with time zone", "udt_name": "timestamptz", "is_nullable": "YES", "numeric_precision": None, "numeric_scale": None})
+            return columns
+
+    connection = TemporalConnection()
+
+    async def connect(_):
+        return connection
+
+    workspace, source = uuid4(), uuid4()
+    store = LocalSnapshotStore(str(tmp_path))
+    capture = PostgresSnapshotCapture(store, CaptureLimits(batch_rows=1, max_rows=10, max_bytes=1_000_000), connect)
+    result = await capture.capture("postgresql://example.test/db", workspace, source, [CaptureTable("sales", "orders", valid_from_column="valid_from")])
+    manifest = store.read_manifest(workspace, result.manifest_key)
+    assert manifest["tables"][0]["valid_time"] == {
+        "columns": {"valid_from": "valid_from"},
+        "valid_from_min": "2025-01-01T00:00:00+00:00",
+        "valid_from_max": "2025-01-31T00:00:00+00:00",
+    }
 
 
 @pytest.mark.asyncio
@@ -117,6 +152,36 @@ async def test_capture_rejects_unbounded_numeric_before_writing_objects(tmp_path
         await capture.capture("postgresql://example.test/db", uuid4(), uuid4(), [CaptureTable("public", "payments")])
     assert raised.value.category == "unsupported_type"
     assert not list(tmp_path.rglob("*.parquet"))
+
+
+@pytest.mark.asyncio
+async def test_discovery_reports_unsupported_tables_without_reading_table_rows(tmp_path):
+    class DiscoveryConnection(_Connection):
+        async def fetch(self, query, *args):
+            if "information_schema.tables" in query:
+                assert args == (2,)
+                return [
+                    {"table_schema": "sales", "table_name": "orders"},
+                    {"table_schema": "sales", "table_name": "events"},
+                ]
+            schema, table = args
+            if "information_schema.columns" in query and table == "events":
+                return [{"column_name": "payload", "data_type": "jsonb", "udt_name": "jsonb", "is_nullable": "YES", "numeric_precision": None, "numeric_scale": None}]
+            return await super().fetch(query, schema, table)
+
+    connection = DiscoveryConnection()
+
+    async def connect(_):
+        return connection
+
+    discovery = PostgresSnapshotCapture(LocalSnapshotStore(str(tmp_path)), CaptureLimits(max_tables=2), connect)
+    tables = await discovery.discover_tables("postgresql://example.test/db")
+
+    assert [(item["schema"], item["table"]) for item in tables] == [("sales", "orders"), ("sales", "events")]
+    assert tables[0]["capture_supported"] is True
+    assert tables[0]["primary_key"] == ["id"]
+    assert tables[1]["capture_supported"] is False
+    assert "unsupported PostgreSQL type" in tables[1]["unsupported_reason"]
 
 
 @pytest.mark.asyncio

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow, FileCheck2, Network } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +12,17 @@ const NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Chat" },
   { href: "/history", icon: History, label: "History" },
   { href: "/connections", icon: Database, label: "Connections" },
+  { href: "/sources", icon: HardDrive, label: "Data Sources" },
   { href: "/schema", icon: Sigma, label: "Schema" },
   { href: "/datasets", icon: FileSpreadsheet, label: "Datasets" },
   { href: "/replay", icon: GitCompareArrows, label: "Replay Lab" },
+  { href: "/dataset-diff", icon: GitCompareArrows, label: "Dataset Diff" },
+  { href: "/sql-regression", icon: ShieldCheck, label: "SQL Regression" },
+  { href: "/join-audit", icon: GitMerge, label: "Join Auditor" },
+  { href: "/contracts", icon: ClipboardCheck, label: "Contracts" },
+  { href: "/shadow-runs", icon: GitPullRequestArrow, label: "Shadow Runs" },
+  { href: "/decision-receipts", icon: FileCheck2, label: "Decision Receipts" },
+  { href: "/lineage", icon: Network, label: "Lineage" },
   { href: "/simulation", icon: FlaskConical, label: "Simulation" },
   { href: "/specialists", icon: Brain, label: "Specialists" },
   { href: "/evaluation", icon: BarChart3, label: "Evaluation" },
@@ -24,9 +32,17 @@ const PAGE_LABELS: Record<string, string> = {
   "/dashboard": "Analytical workspace",
   "/history": "Session history",
   "/connections": "Connection management",
+  "/sources": "Historical data sources",
   "/schema": "Schema explorer",
   "/datasets": "Dataset management",
   "/replay": "Historical Replay Lab",
+  "/dataset-diff": "Dataset comparison",
+  "/sql-regression": "SQL regression gates",
+  "/join-audit": "SQL join diagnostics",
+  "/contracts": "Metric contracts",
+  "/shadow-runs": "Shadow execution gates",
+  "/decision-receipts": "Decision evidence",
+  "/lineage": "Versioned lineage",
   "/simulation": "What-if simulation",
   "/specialists": "Specialist agents",
   "/evaluation": "Benchmarks and audits",

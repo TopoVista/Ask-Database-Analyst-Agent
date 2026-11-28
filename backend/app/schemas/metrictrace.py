@@ -23,6 +23,8 @@ class ReplayRead(BaseModel):
 class CaptureTableRequest(BaseModel):
     schema_name: str = Field(validation_alias="schema", serialization_alias="schema", min_length=1, max_length=63)
     table: str = Field(min_length=1, max_length=63)
+    valid_from_column: str | None = Field(default=None, min_length=1, max_length=63)
+    valid_to_column: str | None = Field(default=None, min_length=1, max_length=63)
 
 
 class PostgresSourceCreate(BaseModel):
@@ -31,6 +33,83 @@ class PostgresSourceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     tables: list[CaptureTableRequest] = Field(min_length=1, max_length=64)
     schedule_seconds: int | None = Field(default=None, ge=300, le=2_592_000)
+    cdc_ingestion_enabled: bool = False
+
+
+class CdcIngestRequest(BaseModel):
+    workspace_id: str
+    events: list[dict[str, Any]] = Field(min_length=1, max_length=10_000)
+
+
+class PostgresDiscoveryRequest(BaseModel):
+    workspace_id: str
+    connection_id: str
+
+
+class DatasetDiffRequest(BaseModel):
+    workspace_id: str
+    old_version_id: str
+    new_version_id: str
+    key_columns: list[str] = Field(default_factory=list, max_length=16)
+    old_table: CaptureTableRequest | None = None
+    new_table: CaptureTableRequest | None = None
+    limit: int = Field(default=100, ge=1, le=1_000)
+    offset: int = Field(default=0, ge=0)
+
+
+class SqlRegressionRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+    baseline_sql: str = Field(min_length=1, max_length=100_000)
+    candidate_sql: str = Field(min_length=1, max_length=100_000)
+    table: CaptureTableRequest | None = None
+    max_absolute_difference: str | None = Field(default=None, max_length=128)
+    max_percent_difference: str | None = Field(default=None, max_length=128)
+    parameters: dict[str, str | int | float | bool | None] = Field(default_factory=dict, max_length=32)
+
+
+class JoinAuditRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+    sql: str = Field(min_length=1, max_length=100_000)
+
+
+class ContractCreateRequest(BaseModel):
+    workspace_id: str
+    name: str = Field(min_length=1, max_length=255)
+    contracts: list[dict[str, Any]] = Field(min_length=1, max_length=100)
+
+
+class ContractEvaluateRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+
+
+class RegressionPolicyCreateRequest(BaseModel):
+    workspace_id: str
+    name: str = Field(min_length=1, max_length=255)
+    max_absolute_difference: str | None = Field(default=None, max_length=128)
+    max_percent_difference: str | None = Field(default=None, max_length=128)
+    required_contract_id: str | None = None
+
+
+class ShadowExecutionRequest(BaseModel):
+    workspace_id: str
+    policy_id: str
+    baseline_definition_id: str
+    candidate_definition_id: str
+    dataset_version_id: str
+    table: CaptureTableRequest | None = None
+
+
+class MetricPromotionRequest(BaseModel):
+    workspace_id: str
+    shadow_execution_id: str
+
+
+class MetricLineageSnapshotRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
 
 
 class CaptureRead(BaseModel):

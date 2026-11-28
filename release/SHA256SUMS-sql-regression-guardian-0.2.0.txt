@@ -1,0 +1,1 @@
+38a93acc7de1913adc9363c8b68231e503842bb9eea13499a2d2bb962e84621a  release/sql-regression-guardian-0.2.0.zip

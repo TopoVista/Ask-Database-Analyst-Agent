@@ -45,6 +45,29 @@ connected agent permits Python installation or temporary-script execution, so
 that remains an environment-specific limitation rather than a marketplace
 compatibility claim.
 
+## SQL Regression Guardian packaging decision
+
+The existing `metric-regression-investigator` skill is not a release candidate
+under the current marketplace delivery model. Its instructions require an
+externally installed `metrictrace-lite` package. Current packaging guidance
+states that a buyer agent receives package text files only and runs each script
+in isolation, so it cannot rely on another packaged script or on an off-package
+companion installation. Current marketplace guidance also prohibits a skill
+that depends on a seller-operated service or directs buyers to a separate
+sign-up, access code, or free version.
+
+No SQL Regression Guardian ZIP was generated. A future release must use a
+small, self-contained runner generated from the shared deterministic source,
+declare only well-known local Python dependencies, remain under the current
+script review guidance, and be validated from an extracted temporary directory.
+It must not silently copy or hand-maintain a divergent regression algorithm.
+
+Current packaging limits observed on 2026-11-28: one ZIP; valid `SKILL.md`
+frontmatter; 50 MB website-upload limit; no bundled virtual environments or
+dependency trees; buyer delivery limited to `SKILL.md` files plus up to 200
+other text files within six million characters. These are a release gate, not
+marketplace approval.
+
 ## Manual gates still required
 
 1. Copyright-holder authorization for the replacement version and its version

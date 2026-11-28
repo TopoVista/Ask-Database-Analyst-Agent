@@ -27,6 +27,24 @@ async def test_static_lineage_api_uses_authenticated_workspace_scope(client):
     assert denied.status_code == 404
 
 
+async def test_metric_lineage_snapshot_binds_definition_and_dataset_versions(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['old_definition']}/lineage",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["lineage"]["binding"]["dataset_version_id"] == fixture["inputs"]["old_dataset_version"]
+    assert body["lineage"]["source_tables"] == ["source_data"]
+    repeated = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['old_definition']}/lineage",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == body["id"]
+
+
 @pytest.mark.asyncio
 async def test_canonical_metrictrace_replay_is_deterministic_and_reconciles(client):
     first = await client.post("/api/v1/metrictrace/demo")
@@ -78,3 +96,249 @@ async def test_replay_workspace_bootstrap_returns_only_the_authenticated_default
     assert populated.status_code == 200
     assert populated.json()["workspace_id"] == fixture["workspace_id"]
     assert len(populated.json()["options"]["dataset_versions"]) == 2
+
+
+async def test_postgres_discovery_requires_an_owned_postgres_connection(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/sources/postgresql/discover",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "connection_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 404
+    assert "PostgreSQL connection" in response.json()["detail"]
+
+
+async def test_metric_sources_are_listed_only_for_the_authenticated_workspace(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.get(f"/api/v1/metrictrace/sources?workspace_id={fixture['workspace_id']}")
+    assert response.status_code == 200
+    source = response.json()["sources"][0]
+    assert source["name"] == "Monday revenue fixture"
+    assert source["version_count"] == 2
+
+    denied = await client.get("/api/v1/metrictrace/sources?workspace_id=00000000-0000-0000-0000-000000000000")
+    assert denied.status_code == 404
+
+
+async def test_dataset_diff_uses_owned_immutable_versions_without_accepting_paths(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/dataset-diff",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "old_version_id": fixture["inputs"]["old_dataset_version"],
+            "new_version_id": fixture["inputs"]["new_dataset_version"],
+            "key_columns": ["order_id"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["old_version_id"] == fixture["inputs"]["old_dataset_version"]
+    assert body["comparison"]["summary"] == {
+        "mode": "stable_key", "comparable": True, "inserted": 0, "deleted": 0, "modified": 2, "unchanged": 0,
+    }
+    assert {record["key"]["order_id"] for record in body["comparison"]["records"]} == {"a-1", "a-2"}
+
+
+async def test_sql_regression_runs_shared_engine_against_an_owned_immutable_version(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/sql-regression",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+            "baseline_sql": "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid'",
+            "candidate_sql": "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid' AND channel <> 'marketplace'",
+            "max_absolute_difference": "250000",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()["regression"]
+    assert body["baseline"]["value"] == "2400000"
+    assert body["candidate"]["value"] == "2100000"
+    assert body["gates"] == [{"type": "absolute_difference", "limit": "250000", "actual": "300000", "status": "FAIL"}]
+
+
+async def test_join_audit_uses_only_the_owned_snapshot_manifest_tables(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/join-audit",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+            "sql": "SELECT * FROM source_data",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["tables"] == [{"schema": "", "table": "source_data", "sql_name": "source_data"}]
+    assert body["audit"]["supported"] is False
+
+
+async def test_metric_contracts_are_versioned_evaluated_and_workspace_scoped(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    definition = {
+        "workspace_id": fixture["workspace_id"],
+        "name": "Revenue data invariant",
+        "contracts": [
+            {
+                "id": "positive-revenue",
+                "type": "non_negative",
+                "table": "source_data",
+                "column": "amount_inr",
+            },
+            {
+                "id": "expected-columns",
+                "type": "required_columns",
+                "table": "source_data",
+                "columns": ["order_id", "amount_inr"],
+            },
+        ],
+    }
+    created = await client.post("/api/v1/metrictrace/contracts", json=definition)
+    assert created.status_code == 201, created.text
+    first = created.json()["contract"]
+    assert first["version"] == 1
+    assert first["definition_hash"]
+
+    revised = await client.post("/api/v1/metrictrace/contracts", json=definition)
+    assert revised.status_code == 201
+    assert revised.json()["contract"]["version"] == 2
+
+    evaluated = await client.post(
+        f"/api/v1/metrictrace/contracts/{first['id']}/evaluations",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert evaluated.status_code == 201, evaluated.text
+    evaluation = evaluated.json()["evaluation"]
+    assert evaluation["status"] == "PASS"
+    assert evaluation["report"]["dataset_content_hash"]
+    assert {outcome["status"] for outcome in evaluation["report"]["report"]["outcomes"]} == {"PASS"}
+
+    listed = await client.get(f"/api/v1/metrictrace/contracts?workspace_id={fixture['workspace_id']}")
+    assert listed.status_code == 200
+    assert [contract["version"] for contract in listed.json()["contracts"]] == [2, 1]
+    first_listed = listed.json()["contracts"][1]
+    assert first_listed["latest_evaluation"]["id"] == evaluation["id"]
+
+    denied = await client.post(
+        f"/api/v1/metrictrace/contracts/{first['id']}/evaluations",
+        json={
+            "workspace_id": "00000000-0000-0000-0000-000000000000",
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert denied.status_code == 404
+
+
+async def test_shadow_execution_persists_an_exact_regression_gate(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    policy = await client.post(
+        "/api/v1/metrictrace/regression-policies",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Revenue candidate threshold",
+            "max_absolute_difference": "250000",
+        },
+    )
+    assert policy.status_code == 201, policy.text
+    shadow = await client.post(
+        "/api/v1/metrictrace/shadow-executions",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "policy_id": policy.json()["policy_id"],
+            "baseline_definition_id": fixture["inputs"]["old_definition"],
+            "candidate_definition_id": fixture["inputs"]["new_definition"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert shadow.status_code == 201, shadow.text
+    body = shadow.json()
+    assert body["status"] == "FAIL"
+    assert body["report"]["regression"]["difference"]["absolute"] == "300000"
+    assert body["report"]["regression"]["gates"][0]["status"] == "FAIL"
+    assert body["input_fingerprint"]
+    rejected = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": body["id"]},
+    )
+    assert rejected.status_code == 409
+
+
+async def test_promotion_consumes_a_passing_shadow_execution_once(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    policy = await client.post(
+        "/api/v1/metrictrace/regression-policies",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Approved revenue candidate threshold",
+            "max_absolute_difference": "350000",
+        },
+    )
+    assert policy.status_code == 201
+    shadow = await client.post(
+        "/api/v1/metrictrace/shadow-executions",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "policy_id": policy.json()["policy_id"],
+            "baseline_definition_id": fixture["inputs"]["old_definition"],
+            "candidate_definition_id": fixture["inputs"]["new_definition"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert shadow.status_code == 201, shadow.text
+    assert shadow.json()["status"] == "PASS"
+    promoted = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": shadow.json()["id"]},
+    )
+    assert promoted.status_code == 201, promoted.text
+    assert promoted.json()["candidate_definition_id"] == fixture["inputs"]["new_definition"]
+    consumed = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": shadow.json()["id"]},
+    )
+    assert consumed.status_code == 409
+
+
+async def test_decision_receipt_persists_and_verifies_completed_replay(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    created = await client.post(f"/api/v1/metrictrace/replays/{fixture['replay_id']}/decision-receipt")
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["verification"]["valid"] is True
+    assert body["receipt"]["attribution"]["reconciles"] is True
+    assert len(body["receipt"]["cells"]) == 4
+    assert body["receipt"]["contract_outcomes"] == []
+    fetched = await client.get(f"/api/v1/metrictrace/decision-receipts/{body['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["integrity_sha256"] == body["integrity_sha256"]
+
+
+async def test_decision_receipt_binds_persisted_contract_outcomes(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    created_contract = await client.post(
+        "/api/v1/metrictrace/contracts",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Receipt revenue contract",
+            "contracts": [{"id": "non-negative", "type": "non_negative", "table": "source_data", "column": "amount_inr"}],
+        },
+    )
+    assert created_contract.status_code == 201
+    evaluated = await client.post(
+        f"/api/v1/metrictrace/contracts/{created_contract.json()['contract']['id']}/evaluations",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert evaluated.status_code == 201
+    receipt = await client.post(f"/api/v1/metrictrace/replays/{fixture['replay_id']}/decision-receipt")
+    assert receipt.status_code == 201
+    outcomes = receipt.json()["receipt"]["contract_outcomes"]
+    assert outcomes[0]["status"] == "PASS"
+    assert outcomes[0]["dataset_version_id"] == fixture["inputs"]["old_dataset_version"]
