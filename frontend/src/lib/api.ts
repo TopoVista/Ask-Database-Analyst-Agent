@@ -425,3 +425,33 @@ export async function compareDatasetVersions(input: {
     body: JSON.stringify(input),
   });
 }
+
+export interface SqlRegressionResult {
+  dataset_version_id: string;
+  table: { schema: string; table: string } | null;
+  regression: {
+    status: "PASS" | "FAIL";
+    baseline: { value: string; duration_ms: number; normalized_sql: string };
+    candidate: { value: string; duration_ms: number; normalized_sql: string };
+    difference: { absolute: string; percent: string | null };
+    gates: Array<{ type: string; limit: string; actual: string | null; status: "PASS" | "FAIL" | "ERROR"; message?: string }>;
+    static_sql_changed: boolean;
+    fingerprint: string;
+  };
+}
+
+export async function checkSqlRegression(input: {
+  workspace_id: string;
+  dataset_version_id: string;
+  baseline_sql: string;
+  candidate_sql: string;
+  table?: { schema: string; table: string };
+  max_absolute_difference?: string;
+  max_percent_difference?: string;
+  parameters?: Record<string, string | number | boolean | null>;
+}, token?: string | null) {
+  return apiFetch<SqlRegressionResult>("/api/v1/metrictrace/sql-regression", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}

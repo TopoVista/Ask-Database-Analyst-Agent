@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/datasets", label: "Datasets", icon: FileSpreadsheet },
   { href: "/replay", label: "Replay Lab", icon: GitCompareArrows },
   { href: "/dataset-diff", label: "Dataset Diff", icon: GitCompareArrows },
+  { href: "/sql-regression", label: "SQL Regression", icon: ShieldCheck },
   { href: "/simulation", label: "Simulation", icon: FlaskConical },
   { href: "/specialists", label: "Specialists", icon: Brain },
   { href: "/evaluation", label: "Evaluation", icon: BarChart3 },
@@ -29,6 +30,7 @@ const NAV_COPY: Record<string, string> = {
   "/datasets": "Upload and profile data",
   "/replay": "Reconstruct historical metrics",
   "/dataset-diff": "Compare immutable versions",
+  "/sql-regression": "Gate metric SQL changes",
   "/simulation": "What-if scenario analysis",
   "/specialists": "Specialized agent skills",
   "/evaluation": "Benchmarks and audits",
