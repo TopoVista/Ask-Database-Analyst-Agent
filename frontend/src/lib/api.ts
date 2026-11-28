@@ -303,3 +303,24 @@ export interface ReplayOptions {
 export async function getReplayOptions(workspaceId: string, token?: string | null) {
   return apiFetch<ReplayOptions>(`/api/v1/metrictrace/replay-options?workspace_id=${encodeURIComponent(workspaceId)}`, token);
 }
+
+export interface ReplayStatus {
+  replay_id: string;
+  status: string;
+  attribution: MetricTraceDemoResult["attribution"];
+  cells: Array<Omit<MetricTraceReplayCell, "status"> & { id: string; status: string; duration_ms: number; job_id: string | null }>;
+}
+
+export async function submitReplay(
+  input: { workspace_id: string; old_version_id: string; new_version_id: string; old_definition_id: string; new_definition_id: string },
+  token?: string | null,
+) {
+  return apiFetch<{ replay_id: string; status: string }>("/api/v1/metrictrace/replays", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getReplay(replayId: string, token?: string | null) {
+  return apiFetch<ReplayStatus>(`/api/v1/metrictrace/replays/${encodeURIComponent(replayId)}`, token);
+}
