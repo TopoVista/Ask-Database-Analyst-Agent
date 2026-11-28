@@ -300,7 +300,7 @@ async def create_postgres_source(request: PostgresSourceCreate, current_user: Au
             UUID(request.workspace_id),
             UUID(request.connection_id),
             request.name,
-            [CaptureTable(schema=table.schema_name, table=table.table) for table in request.tables],
+            [CaptureTable(schema=table.schema_name, table=table.table, valid_from_column=table.valid_from_column, valid_to_column=table.valid_to_column) for table in request.tables],
             request.schedule_seconds,
         )
     except (ValueError, LookupError) as exc:

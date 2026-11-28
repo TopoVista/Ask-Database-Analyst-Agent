@@ -23,6 +23,8 @@ class ReplayRead(BaseModel):
 class CaptureTableRequest(BaseModel):
     schema_name: str = Field(validation_alias="schema", serialization_alias="schema", min_length=1, max_length=63)
     table: str = Field(min_length=1, max_length=63)
+    valid_from_column: str | None = Field(default=None, min_length=1, max_length=63)
+    valid_to_column: str | None = Field(default=None, min_length=1, max_length=63)
 
 
 class PostgresSourceCreate(BaseModel):

@@ -35,6 +35,7 @@ licenses and notices remain unchanged.
 | Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The platform exposes a tenant-scoped immutable-version API that materializes only manifest-declared tables under deterministic SQL names before delegating to the shared engine. The SQL Join Auditor workspace selects historical inputs and displays observed join/unmatched/duplicate evidence, aggregate-amplification warnings, and explicit uncertainty. The `sql-join-auditor` skill documents the shared CLI and passes SKILL validation. A tested marketplace ZIP remains unimplemented. |
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. The platform can persist an idempotent lineage snapshot bound to an exact metric-definition version and immutable dataset version; it derives the allowed tables from the snapshot manifest and records both definition and dataset content hashes. The Lineage workspace selects those authoritative inputs and presents a dependency graph, output evidence, transformations, and declared uncertainty. This is not catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
 | Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. The same verified receipt now produces a deterministic investigation brief with field-level evidence paths, numerical findings, and explicit non-causality/custody limitations; it is exposed through the local CLI and stdio MCP without an AI key or external call. The platform persists one receipt per completed replay with all four cell execution fingerprints, immutable dataset/definition identifiers and hashes, attribution, canonical SHA-256 integrity digest, and tenant-scoped retrieval/verification. It attaches the latest prior persisted contract evaluation for each replayed dataset, retaining contract hashes and explicit outcomes; the Decision Receipts workspace presents this evidence alongside integrity state and limitations. Receipt retrieval now reports per-cell dataset/definition availability, including missing or hash-mismatched retained metadata, without claiming source-system retention or custody. Verification explicitly does not claim authenticated authorship. Remote re-execution remains unimplemented. |
+| Bitemporal capture metadata | PARTIAL | PostgreSQL captures now retain the database MVCC snapshot timestamp as source knowledge time, Platform dataset versions retain source-snapshot and system-recorded times, and a source may explicitly declare date/timestamp business-valid-from/to columns. The bounds for declared valid-time columns are calculated inside the same read-only repeatable-read snapshot and recorded in the immutable manifest and version metadata. This is capture-time bitemporal evidence, not CDC, row-level temporal querying, or logical decoding; those remain unimplemented. |
 
 ## Validation baseline
 
@@ -226,6 +227,16 @@ Validation after S3-compatible storage and worker fencing coverage:
   unvalidated.
 - Scoped Ruff over storage, queue, worker, and tests: passed.
 
+Validation after bitemporal capture metadata:
+
+- PostgreSQL capture, capture scheduler, and MetricTrace API tests: `20
+  passed, 1 skipped in 25.44s` on Windows Python 3.11. The skipped MVCC test
+  still requires an explicitly authorized disposable PostgreSQL URL.
+- A fresh SQLite Alembic upgrade completed through
+  `014_add_bitemporal_snapshot_metadata`.
+- Scoped Ruff over the capture adapter, API/schema/service/model changes,
+  migration, and capture tests: passed.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
@@ -239,6 +250,6 @@ No work has been deployed, published, submitted, or monetized.
 Run the environment-gated PostgreSQL MVCC test against a disposable instance
 (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
 available. Meanwhile, add a real multi-session PostgreSQL worker-contention
-test when an authorized test database is available, then implement bitemporal
-capture metadata and a bounded CDC ingestion primitive without needing live
-Docker.
+test when an authorized test database is available, then implement a bounded
+CDC event-ingestion primitive that validates ordering, deduplication, and LSN
+checkpoint semantics without creating external replication slots.

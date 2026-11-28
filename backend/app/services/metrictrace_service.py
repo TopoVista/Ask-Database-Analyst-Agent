@@ -217,7 +217,7 @@ class MetricTraceService:
             name=name,
             source_type="postgresql",
             capture_config={
-                "tables": [{"schema": table.schema, "table": table.table} for table in tables],
+                "tables": [{"schema": table.schema, "table": table.table, "valid_from_column": table.valid_from_column, "valid_to_column": table.valid_to_column} for table in tables],
                 "schedule_seconds": schedule_seconds,
             },
             capture_status="ready",
@@ -1057,6 +1057,8 @@ class MetricTraceService:
             row_count=snapshot.row_count,
             byte_size=snapshot.byte_size,
             schema_json=snapshot.schema,
+            source_snapshot_at=snapshot.source_snapshot_at,
+            temporal_summary={"source_snapshot": "postgresql_mvcc", "tables": [{"schema": item["schema"], "table": item["table"], "valid_time": item.get("valid_time")} for item in snapshot.schema["tables"]]},
             consistency_level="postgresql_repeatable_read",
             status="ready",
         )
