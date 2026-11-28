@@ -11,6 +11,7 @@ from pathlib import Path
 
 from metrictrace_sdk.core import validate_metric_sql as validate_sql
 from metrictrace_sdk.contracts import ContractError, evaluate_contracts
+from metrictrace_sdk.cdc import CdcError, validate_cdc_batch
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import RegressionError
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
@@ -297,6 +298,14 @@ def build_server():
             return {"ok": True, "investigation": generate_investigation_brief(report)}
         except ValueError as exc:
             return {"ok": False, "error": {"code": "unverified_evidence", "message": str(exc)}}
+
+    @server.tool()
+    def validate_cdc_events(events: list[dict], checkpoint_lsn: str | None = None) -> dict:
+        """Validate bounded CDC event ordering before a transport advances an LSN checkpoint."""
+        try:
+            return {"ok": True, "cdc": validate_cdc_batch(events, checkpoint_lsn)}
+        except CdcError as exc:
+            return {"ok": False, "error": {"code": "cdc_events_rejected", "message": str(exc)}}
 
     return server
 

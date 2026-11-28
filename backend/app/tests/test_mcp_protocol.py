@@ -45,6 +45,7 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
                 "inspect_lineage",
                 "inspect_sql_lineage",
                 "generate_investigation_report",
+                "validate_cdc_events",
                 "run_local_metric_replay",
                 "validate_metric_sql",
                 "verify_replay_report",
@@ -91,6 +92,8 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
             assert '"valid":true' in _content(verified).replace(" ", "")
             investigation = await session.call_tool("generate_investigation_report", {"report": report})
             assert '"status":"VERIFIED"' in _content(investigation).replace(" ", "")
+            cdc = await session.call_tool("validate_cdc_events", {"events": [{"event_id": "1", "operation": "INSERT", "commit_lsn": "0/A"}]})
+            assert '"acknowledgement_lsn":"0/A"' in _content(cdc).replace(" ", "")
             rejected = await session.call_tool(
                 "inspect_dataset", {"datasets": {"source_data": str(tmp_path.parent / "not-approved.csv")}}
             )
