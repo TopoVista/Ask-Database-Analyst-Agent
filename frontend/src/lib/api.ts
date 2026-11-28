@@ -455,3 +455,18 @@ export async function checkSqlRegression(input: {
     body: JSON.stringify(input),
   });
 }
+
+export interface JoinAuditResult {
+  dataset_version_id: string;
+  tables: Array<{ schema: string; table: string; sql_name: string }>;
+  audit: {
+    supported: boolean;
+    joins: Array<{ join_index: number; join_type: string; left: { table: string; columns: string[]; profile: { rows: number; distinct_non_null_keys: number; duplicate_key_groups: number; null_key_rows: number } }; right: { table: string; columns: string[]; profile: { rows: number; distinct_non_null_keys: number; duplicate_key_groups: number; null_key_rows: number } }; joined_rows: number; unmatched_left_rows: number; unmatched_right_rows: number; potential_aggregate_amplification: boolean; interpretation: string }>;
+    uncertainty: Array<{ join_index: number; reason: string }>;
+    aggregations: string[];
+  };
+}
+
+export async function auditSqlJoins(input: { workspace_id: string; dataset_version_id: string; sql: string }, token?: string | null) {
+  return apiFetch<JoinAuditResult>("/api/v1/metrictrace/join-audit", token, { method: "POST", body: JSON.stringify(input) });
+}
