@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -82,6 +80,7 @@ class Settings(BaseSettings):
     metrictrace_capture_max_bytes: int = Field(default=2 * 1024 * 1024 * 1024, ge=1_024, le=100 * 1024 * 1024 * 1024)
     metrictrace_capture_timeout_seconds: int = Field(default=900, ge=5, le=3_600)
     metrictrace_job_lease_seconds: int = Field(default=30, ge=5, le=300)
+    metrictrace_scheduler_poll_seconds: int = Field(default=30, ge=5, le=300)
     metrictrace_worker_id: str = ""
 
     @model_validator(mode="after")

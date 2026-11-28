@@ -137,7 +137,13 @@ class MetricTraceService:
         return version
 
     async def create_postgres_source(
-        self, user: User, workspace_id: UUID, connection_id: UUID, name: str, tables: list[CaptureTable]
+        self,
+        user: User,
+        workspace_id: UUID,
+        connection_id: UUID,
+        name: str,
+        tables: list[CaptureTable],
+        schedule_seconds: int | None = None,
     ) -> MetricSource:
         """Register a source without copying its credentials into MetricTrace metadata."""
         workspace = await self._owned_workspace(user, workspace_id)
@@ -151,13 +157,51 @@ class MetricTraceService:
             connection_id=connection.id,
             name=name,
             source_type="postgresql",
-            capture_config={"tables": [{"schema": table.schema, "table": table.table} for table in tables]},
+            capture_config={
+                "tables": [{"schema": table.schema, "table": table.table} for table in tables],
+                "schedule_seconds": schedule_seconds,
+            },
             capture_status="ready",
             capabilities={"consistent_snapshot": "postgresql_repeatable_read"},
         )
         self.db.add(source)
         await self.db.flush()
         return source
+
+    async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
+        """Queue due captures using stable time windows as durable idempotency keys.
+
+        The scheduler does not access credentials or source data. Multiple
+        scheduler processes can observe the same source; the durable-job
+        uniqueness constraint makes a window's capture authoritative once.
+        """
+        now = now or datetime.now(timezone.utc)
+        result = await self.db.execute(
+            select(MetricSource).join(DBConnection, MetricSource.connection_id == DBConnection.id).where(
+                MetricSource.source_type == "postgresql", DBConnection.is_active.is_(True)
+            )
+        )
+        queue = DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds)
+        enqueued = 0
+        for source in result.scalars():
+            interval = source.capture_config.get("schedule_seconds")
+            if isinstance(interval, bool) or not isinstance(interval, int) or interval < 300:
+                continue
+            if source.capture_status in {"queued", "capturing"}:
+                continue
+            window = int(now.timestamp()) // interval
+            job = await queue.enqueue(
+                source.workspace_id,
+                "SNAPSHOT_CAPTURE",
+                {"source_id": str(source.id), "scheduled": True},
+                f"scheduled-snapshot-capture:{source.id}:{window}",
+                max_attempts=3,
+            )
+            if job.status == "QUEUED":
+                source.capture_status = "queued"
+                enqueued += 1
+        await self.db.flush()
+        return enqueued
 
     async def enqueue_postgres_capture(self, user: User, workspace_id: UUID, source_id: UUID):
         """Queue a user-authorized capture; credentials never enter the job payload."""

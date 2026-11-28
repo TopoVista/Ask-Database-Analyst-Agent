@@ -48,6 +48,7 @@ async def create_postgres_source(request: PostgresSourceCreate, current_user: Au
             UUID(request.connection_id),
             request.name,
             [CaptureTable(schema=table.schema_name, table=table.table) for table in request.tables],
+            request.schedule_seconds,
         )
     except (ValueError, LookupError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

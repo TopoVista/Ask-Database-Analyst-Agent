@@ -30,6 +30,7 @@ class PostgresSourceCreate(BaseModel):
     connection_id: str
     name: str = Field(min_length=1, max_length=255)
     tables: list[CaptureTableRequest] = Field(min_length=1, max_length=64)
+    schedule_seconds: int | None = Field(default=None, ge=300, le=2_592_000)
 
 
 class CaptureRead(BaseModel):
