@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
-from app.models.metrictrace import ReplayCell, ReplayJob
+from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
 from app.schemas.metrictrace import PostgresSourceCreate, ReplayRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from app.services.metrictrace_service import MetricTraceService
@@ -98,9 +98,18 @@ async def create_replay(request: ReplayRequest, current_user: AuthenticatedUser 
             UUID(request.old_definition_id),
             UUID(request.new_definition_id),
         )
-    except (ValueError, LookupError) as exc:
+    except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"replay_id": str(job.id), "status": job.status, "attribution": job.attribution}
+
+
+@router.get("/replay-workspace")
+async def replay_workspace(current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    """Discover the caller's authorized workspace without creating sample data."""
+    user = await ensure_user(db, current_user)
+    return await MetricTraceService(db).replay_workspace_for_user(user)
 
 
 @router.get("/replay-options")
@@ -120,5 +129,41 @@ async def get_replay(replay_id: UUID, current_user: AuthenticatedUser = Depends(
     if not replay:
         raise HTTPException(status_code=404, detail="Replay not found")
     await service._owned_workspace(user, replay.workspace_id)
-    cells = list((await db.execute(select(ReplayCell).where(ReplayCell.replay_job_id == replay.id).order_by(ReplayCell.label))).scalars())
-    return {"replay_id": str(replay.id), "status": replay.status, "attribution": replay.attribution, "cells": [{"id": str(c.id), "label": c.label, "status": c.status, "result_inr": c.result_text, "error": c.error, "duration_ms": c.duration_ms, "job_id": str(c.durable_job_id) if c.durable_job_id else None} for c in cells]}
+    rows = list(
+        (
+            await db.execute(
+                select(ReplayCell, DurableJob)
+                .outerjoin(DurableJob, ReplayCell.durable_job_id == DurableJob.id)
+                .where(ReplayCell.replay_job_id == replay.id)
+                .order_by(ReplayCell.label)
+            )
+        ).all()
+    )
+    return {
+        "replay_id": str(replay.id),
+        "status": replay.status,
+        "attribution": replay.attribution,
+        "cells": [
+            {
+                "id": str(cell.id),
+                "label": cell.label,
+                "status": cell.status,
+                "result_inr": cell.result_text,
+                "error": cell.error,
+                "duration_ms": cell.duration_ms,
+                "job_id": str(cell.durable_job_id) if cell.durable_job_id else None,
+                "retryable": durable is not None and durable.status == "RETRY_WAIT",
+            }
+            for cell, durable in rows
+        ],
+    }
+
+
+@router.delete("/replays/{replay_id}", status_code=status.HTTP_202_ACCEPTED)
+async def cancel_replay(replay_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    user = await ensure_user(db, current_user)
+    try:
+        replay = await MetricTraceService(db).cancel_replay(user, replay_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"replay_id": str(replay.id), "status": replay.status}

@@ -25,7 +25,7 @@ licenses and notices remain unchanged.
 | Area | Status | Evidence / limitation |
 | --- | --- | --- |
 | Lite local replay, CLI, SDK and MCP | COMPLETE | Existing 0.1.0 artifacts were locally validated before this roadmap continuation. |
-| Four-way replay queue foundation | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. PostgreSQL multi-worker experiments have not run. |
+| Four-way replay queue foundation and Replay Lab | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. Replay Lab now discovers the authenticated workspace without fixture creation; it selects authorized source/version/metric/definition pairs, enforces same-source and same-metric compatibility in both client and service layers, submits asynchronously, stores replay IDs in the URL, polls authoritative cell-level state through refreshes, represents queued/running/retryable/failed/cancelled states, supports authorized cancellation, and withholds attribution until all four cells complete. PostgreSQL multi-worker experiments and browser E2E validation have not run. |
 | PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. Owner-configured bounded intervals now enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
 | Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
@@ -56,6 +56,19 @@ Validation after the PostgreSQL capture change:
   the receipt changes: passed. The skip remains the Windows symlink-permission
   case.
 
+Validation after the Replay Lab integration (pending its cohesive commit):
+
+- Replay API and worker tests: `6 passed in 7.16s`
+  (`app/tests/test_metrictrace.py`, `app/tests/test_async_replay.py`). These
+  include authenticated workspace bootstrap and cancellation fencing coverage.
+- Scoped Ruff over the changed MetricTrace API, service, queue, and tests:
+  passed.
+- Frontend TypeScript: `npx tsc --noEmit` passed.
+- Frontend lint: `npm run lint` passed with no warnings or errors.
+- Frontend production build: `npm run build` produced `.next/BUILD_ID`.
+  The command runner returned while Next retained child processes, so this is
+  recorded as artifact confirmation rather than a captured clean exit line.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Validated work is
@@ -64,7 +77,10 @@ or monetized.
 
 ## Exact next executable task
 
-Run the environment-gated PostgreSQL MVCC test against a disposable instance
-(`METRICTRACE_TEST_POSTGRES_URL`), then run PostgreSQL multi-worker failure
-experiments (claim contention, lease expiry, stale publication rejection and
-worker termination).
+Inspect the PostgreSQL capture adapter and connection workflow, then implement
+the missing product-facing source discovery/table-selection and capture-status
+flow. In parallel, run the environment-gated PostgreSQL MVCC test against a
+disposable instance (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials
+or Docker become available; then perform multi-worker failure experiments
+(claim contention, lease expiry, stale publication rejection and worker
+termination).

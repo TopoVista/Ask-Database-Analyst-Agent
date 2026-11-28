@@ -342,6 +342,19 @@ class MetricTraceService:
             ],
         }
 
+    async def replay_workspace_for_user(self, user: User) -> dict[str, Any]:
+        """Return the caller's default workspace and its authorized replay inputs.
+
+        The web client must never infer a workspace identifier from local state.
+        Creating an empty default workspace is the same behavior used by the
+        existing MetricTrace entry points and does not create fixture data.
+        """
+        workspace = await self.workspace_for_user(user)
+        return {
+            "workspace_id": str(workspace.id),
+            "options": await self.replay_options_for_user(user, workspace.id),
+        }
+
     @staticmethod
     def _sql_hash(sql: str) -> str:
         return hashlib.sha256(" ".join(sql.split()).encode("utf-8")).hexdigest()
@@ -454,6 +467,10 @@ class MetricTraceService:
         owned_definitions = {definition.id: definition for definition in definitions.scalars().all()}
         if set(owned_versions) != {old_version_id, new_version_id} or set(owned_definitions) != {old_definition_id, new_definition_id}:
             raise LookupError("Replay inputs are unavailable in this workspace")
+        if owned_versions[old_version_id].source_id != owned_versions[new_version_id].source_id:
+            raise ValueError("Replay dataset versions must belong to the same data source")
+        if owned_definitions[old_definition_id].metric_id != owned_definitions[new_definition_id].metric_id:
+            raise ValueError("Replay definitions must belong to the same metric")
         replay = ReplayJob(workspace_id=workspace.id, status="queued")
         self.db.add(replay)
         await self.db.flush()
@@ -466,6 +483,34 @@ class MetricTraceService:
             await self.db.flush()
             durable = await queue.enqueue(workspace.id, "REPLAY_CELL_EXECUTION", {"cell_id": str(cell.id)}, f"replay-cell:{cell.id}")
             cell.durable_job_id = durable.id
+        await self.db.flush()
+        return replay
+
+    async def cancel_replay(self, user: User, replay_id: UUID) -> ReplayJob:
+        """Cancel a replay and fence every cell from publishing further results."""
+        replay = await self.db.get(ReplayJob, replay_id, with_for_update=True)
+        if replay is None:
+            raise LookupError("Replay not found")
+        await self._owned_workspace(user, replay.workspace_id)
+        if replay.status in {"completed", "failed", "cancelled"}:
+            return replay
+
+        cells = list(
+            (
+                await self.db.execute(
+                    select(ReplayCell).where(ReplayCell.replay_job_id == replay.id).with_for_update()
+                )
+            ).scalars()
+        )
+        queue = DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds)
+        for cell in cells:
+            if cell.durable_job_id:
+                durable = await self.db.get(DurableJob, cell.durable_job_id, with_for_update=True)
+                if durable is not None:
+                    await queue.cancel(durable)
+            if cell.status not in {"completed", "failed", "cancelled"}:
+                cell.status, cell.error = "cancelled", "Cancelled by an authorized user."
+        replay.status, replay.completed_at = "cancelled", datetime.now(timezone.utc)
         await self.db.flush()
         return replay
 

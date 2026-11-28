@@ -96,8 +96,9 @@ class DurableJobQueue:
 
     async def cancel(self, job: DurableJob) -> None:
         job.cancellation_requested = True
-        if job.status in {"QUEUED", "RETRY_WAIT"}:
+        if job.status not in TERMINAL:
             job.status, job.finished_at = "CANCELLED", utcnow()
+            job.lease_owner, job.lease_expires_at = None, None
         await self.db.flush()
 
     async def _owned(self, job_id: UUID, worker_id: str, fencing_token: int) -> DurableJob:
@@ -109,6 +110,6 @@ class DurableJobQueue:
         # local tests exercise the same lease semantics.
         if expires_at is not None and expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if not job or job.status != "RUNNING" or job.lease_owner != worker_id or job.fencing_token != fencing_token or not expires_at or expires_at <= now:
+        if not job or job.cancellation_requested or job.status != "RUNNING" or job.lease_owner != worker_id or job.fencing_token != fencing_token or not expires_at or expires_at <= now:
             raise StaleLeaseError("Worker lease is no longer authoritative.")
         return job

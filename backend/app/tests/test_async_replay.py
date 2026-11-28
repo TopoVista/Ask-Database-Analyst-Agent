@@ -30,3 +30,29 @@ async def test_replay_is_persisted_then_completed_by_independent_cell_jobs(clien
     assert body["status"] == "completed"
     assert all(cell["status"] == "completed" for cell in body["cells"])
     assert body["attribution"]["total_change"] == "-600000"
+
+
+@pytest.mark.asyncio
+async def test_authorized_replay_cancellation_fences_all_unpublished_cells(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    submitted = await client.post(
+        "/api/v1/metrictrace/replays",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "old_version_id": fixture["inputs"]["old_dataset_version"],
+            "new_version_id": fixture["inputs"]["new_dataset_version"],
+            "old_definition_id": fixture["inputs"]["old_definition"],
+            "new_definition_id": fixture["inputs"]["new_definition"],
+        },
+    )
+    replay_id = submitted.json()["replay_id"]
+
+    cancelled = await client.delete(f"/api/v1/metrictrace/replays/{replay_id}")
+    assert cancelled.status_code == 202, cancelled.text
+    assert cancelled.json()["status"] == "cancelled"
+
+    replay = await client.get(f"/api/v1/metrictrace/replays/{replay_id}")
+    assert replay.json()["status"] == "cancelled"
+    assert {cell["status"] for cell in replay.json()["cells"]} == {"cancelled"}
+
+    assert not await MetricTraceWorker("cancelled-worker").run_once()
