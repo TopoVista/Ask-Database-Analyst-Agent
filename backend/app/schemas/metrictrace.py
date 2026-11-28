@@ -66,6 +66,17 @@ class JoinAuditRequest(BaseModel):
     sql: str = Field(min_length=1, max_length=100_000)
 
 
+class ContractCreateRequest(BaseModel):
+    workspace_id: str
+    name: str = Field(min_length=1, max_length=255)
+    contracts: list[dict[str, Any]] = Field(min_length=1, max_length=100)
+
+
+class ContractEvaluateRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

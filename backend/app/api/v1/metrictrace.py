@@ -11,15 +11,68 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
 from metrictrace_sdk.join_audit import JoinAuditError
+from metrictrace_sdk.contracts import ContractError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
+
+
+@router.post("/contracts", status_code=status.HTTP_201_CREATED)
+async def create_contract(
+    request: ContractCreateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Create a new immutable version; updating a contract creates another version."""
+    user = await ensure_user(db, current_user)
+    try:
+        contract = await MetricTraceService(db).create_contract(
+            user, UUID(request.workspace_id), request.name, request.contracts
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (ContractError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"contract": MetricTraceService._contract_read(contract)}
+
+
+@router.get("/contracts")
+async def list_contracts(
+    workspace_id: UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    user = await ensure_user(db, current_user)
+    try:
+        contracts = await MetricTraceService(db).contracts_for_user(user, workspace_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"contracts": contracts}
+
+
+@router.post("/contracts/{contract_id}/evaluations", status_code=status.HTTP_201_CREATED)
+async def evaluate_contract(
+    contract_id: UUID,
+    request: ContractEvaluateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Explicitly authorize a state-changing historical contract evaluation."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).evaluate_contract_for_version(
+            user, UUID(request.workspace_id), contract_id, UUID(request.dataset_version_id)
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (ContractError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/sources/postgresql/discover")

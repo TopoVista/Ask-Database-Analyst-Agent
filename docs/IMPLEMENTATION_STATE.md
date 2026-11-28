@@ -30,7 +30,7 @@ licenses and notices remain unchanged.
 | Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
 | Dataset diff | PARTIAL | Shared Lite engine compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The platform now adapts tenant-owned immutable version IDs—not user paths or storage keys—to that same engine, materializes one authorized Parquet object per version into bounded private temporary files, requires explicit table choice for multi-table captures, and exposes the result through the Dataset Diff workspace. The `dataset-diff-inspector` skill documents the shared CLI and passes SKILL validation. Historical multi-table capture comparison and marketplace ZIP validation remain untested against live PostgreSQL/MinIO infrastructure. |
-| Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The `metric-contract-guardian` commercial skill now invokes this engine and passes SKILL validation. Platform persistence/UI and a release ZIP remain unimplemented. |
+| Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The platform now has tenant-scoped immutable contract-definition versions, explicit historical evaluation actions, durable evidence records bound to exact dataset content hashes and definition hashes, and a Contracts workspace to save/evaluate/view real outcomes. It delegates execution to the shared engine and accepts no user file paths. Shadow execution, transactional promotions, stale-approval fencing, and a release ZIP remain unimplemented. |
 | SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The platform exposes the same engine through a tenant-scoped immutable-version API with optional multi-table selection and typed parameters; client paths cannot be supplied. The SQL Regression workspace selects evidence, evaluates baseline/candidate SQL, and renders actual gate outcomes, timings, normalized SQL, and evidence fingerprints. The `metric-regression-investigator` commercial skill invokes this engine and passes SKILL validation. Shadow runs, promotion gates, persisted contracts and a release ZIP remain unimplemented. |
 | Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The platform exposes a tenant-scoped immutable-version API that materializes only manifest-declared tables under deterministic SQL names before delegating to the shared engine. The SQL Join Auditor workspace selects historical inputs and displays observed join/unmatched/duplicate evidence, aggregate-amplification warnings, and explicit uncertainty. The `sql-join-auditor` skill documents the shared CLI and passes SKILL validation. A tested marketplace ZIP remains unimplemented. |
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. This is not persisted platform lineage, database-catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
@@ -108,6 +108,21 @@ commit):
 - Scoped Ruff: passed.
 - The SQL Join Auditor workspace passes frontend TypeScript and lint.
 
+Validation after Metric Contract Guardian platform integration:
+
+- Contract API and shared evaluator tests: `13 passed in 14.51s`
+  (`app/tests/test_metrictrace.py`, `app/tests/test_contracts.py`). This covers
+  immutable definition version increments, persisted evidence, PASS outcomes,
+  listing the last evaluation, and cross-workspace denial.
+- Scoped Ruff over the changed models, service, API, schema, migration, and
+  tests: passed.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `009_add_metric_contracts`: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors.
+- Frontend production build compiled successfully and entered Next.js type
+  validation; the runner returned before its child process yielded a final
+  exit line, so a full clean build exit is not claimed.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Validated work is
@@ -116,9 +131,10 @@ or monetized.
 
 ## Exact next executable task
 
-Implement platform Metric Contract persistence/UI, then run the
-environment-gated PostgreSQL MVCC test against a
-disposable instance (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials
-or Docker become available; then perform multi-worker failure experiments
-(claim contention, lease expiry, stale publication rejection and worker
-termination).
+Implement deterministic shadow execution and regression-gate persistence for
+metric-definition promotion, including stale-approval rejection and exact
+dataset/contract/policy version binding. Then run the environment-gated
+PostgreSQL MVCC test against a disposable instance (`METRICTRACE_TEST_POSTGRES_URL`)
+if authorized credentials or Docker become available, followed by multi-worker
+failure experiments (claim contention, lease expiry, stale publication rejection
+and worker termination).

@@ -470,3 +470,41 @@ export interface JoinAuditResult {
 export async function auditSqlJoins(input: { workspace_id: string; dataset_version_id: string; sql: string }, token?: string | null) {
   return apiFetch<JoinAuditResult>("/api/v1/metrictrace/join-audit", token, { method: "POST", body: JSON.stringify(input) });
 }
+
+export interface MetricContractRead {
+  id: string;
+  name: string;
+  version: number;
+  definition_hash: string;
+  contracts: Array<Record<string, unknown>>;
+  created_at: string;
+  latest_evaluation: ContractEvaluation | null;
+}
+
+export interface ContractEvaluation {
+  id: string;
+  status: "PASS" | "FAIL" | "ERROR";
+  dataset_version_id: string;
+  input_fingerprint: string;
+  report: {
+    dataset_content_hash: string;
+    tables: Array<{ schema: string; table: string; sql_name: string }>;
+    report: {
+      summary: Record<string, number | boolean>;
+      outcomes: Array<{ id: string; type: string; severity: string; status: "PASS" | "FAIL" | "ERROR" | "NOT_EVALUATED"; message: string; evidence: Record<string, unknown> }>;
+    };
+  };
+  created_at: string;
+}
+
+export async function listMetricContracts(workspaceId: string, token?: string | null) {
+  return apiFetch<{ contracts: MetricContractRead[] }>(`/api/v1/metrictrace/contracts?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export async function createMetricContract(input: { workspace_id: string; name: string; contracts: Array<Record<string, unknown>> }, token?: string | null) {
+  return apiFetch<{ contract: MetricContractRead }>("/api/v1/metrictrace/contracts", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function evaluateMetricContract(contractId: string, input: { workspace_id: string; dataset_version_id: string }, token?: string | null) {
+  return apiFetch<{ contract: MetricContractRead; evaluation: ContractEvaluation }>(`/api/v1/metrictrace/contracts/${encodeURIComponent(contractId)}/evaluations`, token, { method: "POST", body: JSON.stringify(input) });
+}

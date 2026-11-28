@@ -109,6 +109,36 @@ class MetricObservation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class MetricContract(Base):
+    """An immutable, workspace-scoped version of a declarative contract set."""
+
+    __tablename__ = "metric_contracts"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", "version", name="uq_metric_contract_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    contracts: Mapped[list] = mapped_column(JSON, nullable=False)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ContractEvaluation(Base):
+    """Durable evidence from evaluating one exact contract version and snapshot."""
+
+    __tablename__ = "contract_evaluations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    contract_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_contracts.id", ondelete="CASCADE"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ReplayJob(Base):
     __tablename__ = "replay_jobs"
 
@@ -169,5 +199,8 @@ Index("idx_workspace_members_user", WorkspaceMember.user_id)
 Index("idx_metric_sources_workspace", MetricSource.workspace_id)
 Index("idx_dataset_versions_source_capture", DatasetVersion.source_id, DatasetVersion.captured_at)
 Index("idx_metrics_workspace", Metric.workspace_id)
+Index("idx_metric_contracts_workspace_name", MetricContract.workspace_id, MetricContract.name)
+Index("idx_contract_evaluations_workspace_created", ContractEvaluation.workspace_id, ContractEvaluation.created_at)
+Index("idx_contract_evaluations_contract_created", ContractEvaluation.contract_id, ContractEvaluation.created_at)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
 Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

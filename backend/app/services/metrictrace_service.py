@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -27,9 +27,11 @@ from app.infrastructure.storage import LocalParquetStorage
 from app.infrastructure.storage.snapshot_store import snapshot_store_from_settings
 from app.services.connection_service import ConnectionService
 from app.models.metrictrace import (
+    ContractEvaluation,
     DatasetVersion,
     DurableJob,
     Metric,
+    MetricContract,
     MetricDefinition,
     MetricObservation,
     MetricSource,
@@ -46,6 +48,7 @@ from metrictrace_sdk.lineage import inspect_sql_lineage
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import check_sql_regression
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
+from metrictrace_sdk.contracts import ContractError, ERROR, PASS, evaluate_contracts
 
 
 class MetricTraceService:
@@ -377,6 +380,150 @@ class MetricTraceService:
             "dataset_version_id": str(dataset_version_id),
             "tables": table_identities,
             "audit": report,
+        }
+
+    async def create_contract(
+        self, user: User, workspace_id: UUID, name: str, contracts: list[dict[str, Any]]
+    ) -> MetricContract:
+        """Create a new immutable definition version for a tenant-owned contract."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        if not contracts or any(not isinstance(contract, dict) for contract in contracts):
+            raise ContractError("A contract definition must contain one or more objects.")
+        canonical = json.dumps(contracts, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        next_version = (
+            await self.db.execute(
+                select(func.max(MetricContract.version)).where(
+                    MetricContract.workspace_id == workspace.id, MetricContract.name == name
+                )
+            )
+        ).scalar_one_or_none()
+        contract = MetricContract(
+            workspace_id=workspace.id,
+            name=name,
+            version=(next_version or 0) + 1,
+            contracts=json.loads(canonical),
+            definition_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        )
+        self.db.add(contract)
+        await self.db.flush()
+        return contract
+
+    async def contracts_for_user(self, user: User, workspace_id: UUID) -> list[dict[str, Any]]:
+        """List exact definition versions and their most recent durable evaluation."""
+        await self._owned_workspace(user, workspace_id)
+        contracts = list(
+            (
+                await self.db.execute(
+                    select(MetricContract)
+                    .where(MetricContract.workspace_id == workspace_id)
+                    .order_by(MetricContract.name, MetricContract.version.desc())
+                )
+            ).scalars()
+        )
+        if not contracts:
+            return []
+        latest_rows = list(
+            (
+                await self.db.execute(
+                    select(ContractEvaluation)
+                    .where(ContractEvaluation.contract_id.in_([contract.id for contract in contracts]))
+                    .order_by(ContractEvaluation.created_at.desc())
+                )
+            ).scalars()
+        )
+        latest: dict[UUID, ContractEvaluation] = {}
+        for evaluation in latest_rows:
+            latest.setdefault(evaluation.contract_id, evaluation)
+        return [
+            self._contract_read(contract, latest.get(contract.id))
+            for contract in contracts
+        ]
+
+    async def evaluate_contract_for_version(
+        self, user: User, workspace_id: UUID, contract_id: UUID, dataset_version_id: UUID
+    ) -> dict[str, Any]:
+        """Persist shared-engine evaluation evidence for one authorized snapshot."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        contract = await self.db.get(MetricContract, contract_id)
+        if contract is None or contract.workspace_id != workspace.id:
+            raise LookupError("Contract definition is unavailable in this workspace")
+        version = (
+            await self.db.execute(
+                select(DatasetVersion)
+                .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+                .where(
+                    DatasetVersion.id == dataset_version_id,
+                    DatasetVersion.status == "ready",
+                    MetricSource.workspace_id == workspace.id,
+                )
+            )
+        ).scalars().first()
+        if version is None:
+            raise LookupError("Dataset version is unavailable in this workspace")
+        store = snapshot_store_from_settings(get_settings())
+        try:
+            with tempfile.TemporaryDirectory(prefix="metrictrace-contract-") as raw_temp:
+                temp_dir = Path(raw_temp)
+                datasets, table_identities = self._materialize_join_objects(store, workspace.id, version, temp_dir)
+                report = evaluate_contracts(datasets, contract.contracts, allowed_roots=(str(temp_dir),))
+        except JoinAuditError as exc:
+            raise ContractError(str(exc)) from exc
+        mandatory_errors = any(
+            outcome["severity"] == "error" and outcome["status"] == ERROR
+            for outcome in report["outcomes"]
+        )
+        evaluation_status = PASS if report["summary"]["mandatory_passed"] else (ERROR if mandatory_errors else "FAIL")
+        input_fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "contract_hash": contract.definition_hash,
+                    "dataset_content_hash": version.content_hash,
+                    "outcomes": report["outcomes"],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        evidence = {
+            "format_version": 1,
+            "dataset_version_id": str(version.id),
+            "dataset_content_hash": version.content_hash,
+            "tables": table_identities,
+            "report": report,
+        }
+        evaluation = ContractEvaluation(
+            workspace_id=workspace.id,
+            contract_id=contract.id,
+            dataset_version_id=version.id,
+            status=evaluation_status,
+            input_fingerprint=input_fingerprint,
+            report=evidence,
+        )
+        self.db.add(evaluation)
+        await self.db.flush()
+        return {"contract": self._contract_read(contract), "evaluation": self._evaluation_read(evaluation)}
+
+    @staticmethod
+    def _contract_read(contract: MetricContract, evaluation: ContractEvaluation | None = None) -> dict[str, Any]:
+        return {
+            "id": str(contract.id),
+            "name": contract.name,
+            "version": contract.version,
+            "definition_hash": contract.definition_hash,
+            "contracts": contract.contracts,
+            "created_at": contract.created_at.isoformat(),
+            "latest_evaluation": MetricTraceService._evaluation_read(evaluation) if evaluation else None,
+        }
+
+    @staticmethod
+    def _evaluation_read(evaluation: ContractEvaluation) -> dict[str, Any]:
+        return {
+            "id": str(evaluation.id),
+            "status": evaluation.status,
+            "dataset_version_id": str(evaluation.dataset_version_id),
+            "input_fingerprint": evaluation.input_fingerprint,
+            "report": evaluation.report,
+            "created_at": evaluation.created_at.isoformat(),
         }
 
     @staticmethod
