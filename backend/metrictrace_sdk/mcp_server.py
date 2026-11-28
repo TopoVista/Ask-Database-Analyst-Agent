@@ -24,7 +24,11 @@ from metrictrace_sdk.local_replay import (
     LocalReplayLimits,
     inspect_datasets,
 )
-from metrictrace_sdk.reporting import create_report, verify_report
+from metrictrace_sdk.reporting import (
+    create_report,
+    generate_investigation_report as generate_investigation_brief,
+    verify_report,
+)
 
 
 def _authorized_roots() -> tuple[str, ...]:
@@ -285,6 +289,14 @@ def build_server():
     def verify_replay_report(report: dict) -> dict:
         """Verify a report digest and numerical reconciliation; it does not re-execute data."""
         return {"ok": True, "verification": verify_report(report)}
+
+    @server.tool()
+    def generate_investigation_report(report: dict) -> dict:
+        """Create a deterministic, citation-bound brief from one verified local replay report."""
+        try:
+            return {"ok": True, "investigation": generate_investigation_brief(report)}
+        except ValueError as exc:
+            return {"ok": False, "error": {"code": "unverified_evidence", "message": str(exc)}}
 
     return server
 

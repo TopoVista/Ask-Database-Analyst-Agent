@@ -23,7 +23,13 @@ from metrictrace_sdk.local_replay import (
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, markdown_report, reproduce_report, verify_report
+from metrictrace_sdk.reporting import (
+    create_report,
+    generate_investigation_report,
+    markdown_report,
+    reproduce_report,
+    verify_report,
+)
 
 EXIT_OK, EXIT_USAGE, EXIT_REMOTE, EXIT_POLICY, EXIT_RESOURCE, EXIT_EXECUTION = range(6)
 
@@ -231,6 +237,11 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-report", help="Verify report integrity and numerical reconciliation"
     )
     verify.add_argument("--report", required=True)
+    investigation = sub.add_parser(
+        "investigation-report",
+        help="Generate a deterministic evidence-grounded brief from a verified replay report",
+    )
+    investigation.add_argument("--report", required=True)
     reproduce = sub.add_parser(
         "reproduce-report", help="Re-execute authorized local evidence for a supplied replay report"
     )
@@ -347,6 +358,11 @@ def main(argv: list[str] | None = None) -> int:
                 {"ok": verdict["valid"], "verification": verdict},
                 EXIT_OK if verdict["valid"] else EXIT_EXECUTION,
             )
+        if args.command == "investigation-report":
+            investigation = generate_investigation_report(
+                json.loads(Path(args.report).read_text(encoding="utf-8"))
+            )
+            return _emit({"ok": True, "investigation": investigation})
         if args.command == "reproduce-report":
             report = json.loads(Path(args.report).read_text(encoding="utf-8"))
             verdict = reproduce_report(

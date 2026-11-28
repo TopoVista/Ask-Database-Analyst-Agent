@@ -14,7 +14,12 @@ from metrictrace_sdk.local_replay import (
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, reproduce_report, verify_report
+from metrictrace_sdk.reporting import (
+    create_report,
+    generate_investigation_report,
+    reproduce_report,
+    verify_report,
+)
 
 
 def test_lite_multi_table_replay_and_report_integrity(tmp_path):
@@ -68,6 +73,35 @@ def test_report_reproduction_checks_exact_evidence_before_rerunning(tmp_path):
     mismatched = reproduce_report(report, str(old), str(new), old_sql, new_sql, limits=limits)
     assert mismatched["reexecution"]["status"] == "INPUT_MISMATCH"
     assert mismatched["reexecution"]["mismatches"][0]["kind"] == "dataset_identity_mismatch"
+
+
+def test_investigation_report_only_states_verified_replay_evidence(tmp_path, capsys):
+    old, new = tmp_path / "old.csv", tmp_path / "new.csv"
+    report_path = tmp_path / "report.json"
+    old.write_text("amount\n10\n", encoding="utf-8")
+    new.write_text("amount\n8\n", encoding="utf-8")
+    limits = LocalReplayLimits(timeout_seconds=15)
+    report = create_report(
+        str(old), str(new), "SELECT SUM(amount) FROM source_data", "SELECT SUM(amount) FROM source_data",
+        run_local_four_way(str(old), str(new), "SELECT SUM(amount) FROM source_data", "SELECT SUM(amount) FROM source_data", limits),
+        limits,
+    )
+    investigation = generate_investigation_report(report)
+    assert investigation["status"] == "VERIFIED"
+    assert investigation["report_integrity_sha256"] == report["integrity_sha256"]
+    assert investigation["findings"][0] == {
+        "kind": "observed_total_change",
+        "value": "-2",
+        "evidence_path": "replay.attribution.total_change",
+    }
+
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    assert main(["investigation-report", "--report", str(report_path)]) == 0
+    assert json.loads(capsys.readouterr().out)["investigation"]["status"] == "VERIFIED"
+
+    report["replay"]["cells"]["new_data_new_definition"] = "9"
+    with pytest.raises(ValueError, match="verified replay"):
+        generate_investigation_report(report)
 
 
 def test_report_reproduction_cli_returns_structured_success(tmp_path, capsys):

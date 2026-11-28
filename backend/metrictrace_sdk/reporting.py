@@ -185,6 +185,59 @@ def verify_report(report: dict) -> dict[str, object]:
     }
 
 
+def generate_investigation_report(report: dict) -> dict[str, object]:
+    """Render an evidence-bounded investigation brief from a verified replay.
+
+    This intentionally does not call an AI model.  Every finding points to a
+    value already present in the integrity-checked report, so agent hosts can
+    add their own narrative without being given unsupported causal claims.
+    """
+    verification = verify_report(report)
+    if not verification["valid"]:
+        raise ValueError("Investigation reports require a structurally complete, verified replay report.")
+    attribution = report["replay"]["attribution"]
+    compatibility = report["schemas"]["compatibility"]
+    findings = [
+        {
+            "kind": kind,
+            "value": attribution[key],
+            "evidence_path": f"replay.attribution.{key}",
+        }
+        for kind, key in (
+            ("observed_total_change", "total_change"),
+            ("symmetric_data_contribution", "data_contribution"),
+            ("symmetric_definition_contribution", "definition_contribution"),
+            ("interaction_diagnostic", "interaction_effect"),
+        )
+    ]
+    return {
+        "schema_version": "1.0",
+        "status": "VERIFIED",
+        "report_integrity_sha256": report["integrity_sha256"],
+        "verification": verification,
+        "findings": findings,
+        "schema_compatibility": {
+            "compatible": compatibility.get("compatible"),
+            "evidence_path": "schemas.compatibility",
+        },
+        "recommended_checks": [
+            {
+                "question": "Which declared data change explains the observed data contribution?",
+                "evidence_boundary": "The receipt quantifies contribution but does not establish cause.",
+            },
+            {
+                "question": "Does the interaction diagnostic warrant a segment-level replay?",
+                "evidence_boundary": "The interaction is a numerical diagnostic, not an ownership finding.",
+            },
+        ],
+        "limitations": [
+            "Findings are deterministic restatements of the verified replay evidence.",
+            "This report does not authenticate an author, prove source-system custody, or establish causality.",
+            "No rows, local paths, credentials, or external AI services are included or contacted.",
+        ],
+    }
+
+
 def _input_mismatches(
     expected: object, supplied: str | Mapping[str, str], limits: LocalReplayLimits,
     allowed_roots: tuple[str, ...], label: str,
