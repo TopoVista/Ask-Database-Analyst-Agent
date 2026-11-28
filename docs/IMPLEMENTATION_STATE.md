@@ -36,6 +36,7 @@ licenses and notices remain unchanged.
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. The platform can persist an idempotent lineage snapshot bound to an exact metric-definition version and immutable dataset version; it derives the allowed tables from the snapshot manifest and records both definition and dataset content hashes. The Lineage workspace selects those authoritative inputs and presents a dependency graph, output evidence, transformations, and declared uncertainty. This is not catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
 | Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. The same verified receipt now produces a deterministic investigation brief with field-level evidence paths, numerical findings, and explicit non-causality/custody limitations; it is exposed through the local CLI and stdio MCP without an AI key or external call. The platform persists one receipt per completed replay with all four cell execution fingerprints, immutable dataset/definition identifiers and hashes, attribution, canonical SHA-256 integrity digest, and tenant-scoped retrieval/verification. It attaches the latest prior persisted contract evaluation for each replayed dataset, retaining contract hashes and explicit outcomes; the Decision Receipts workspace presents this evidence alongside integrity state and limitations. Receipt retrieval now reports per-cell dataset/definition availability, including missing or hash-mismatched retained metadata, without claiming source-system retention or custody. Verification explicitly does not claim authenticated authorship. Remote re-execution remains unimplemented. |
 | Bitemporal capture metadata | PARTIAL | PostgreSQL captures now retain the database MVCC snapshot timestamp as source knowledge time, Platform dataset versions retain source-snapshot and system-recorded times, and a source may explicitly declare date/timestamp business-valid-from/to columns. The bounds for declared valid-time columns are calculated inside the same read-only repeatable-read snapshot and recorded in the immutable manifest and version metadata. This is capture-time bitemporal evidence, not CDC, row-level temporal querying, or logical decoding; those remain unimplemented. |
+| CDC validation core | PARTIAL | The shared deterministic core now validates bounded PostgreSQL logical-decoding event metadata: `INSERT`/`UPDATE`/`DELETE` operations, PostgreSQL hexadecimal LSN format, nondecreasing commit ordering, transaction identifiers, duplicate event IDs, and durable-checkpoint acknowledgement values. It is exposed through the JSON-first Lite CLI. It deliberately neither creates replication slots nor reads WAL nor applies changes to snapshots; a transport/persistence adapter and explicit external replication authorization remain required. |
 
 ## Validation baseline
 
@@ -237,6 +238,13 @@ Validation after bitemporal capture metadata:
 - Scoped Ruff over the capture adapter, API/schema/service/model changes,
   migration, and capture tests: passed.
 
+Validation after CDC batch validation core:
+
+- CDC validation, local report, and CLI tests: `13 passed, 1 skipped in
+  10.90s` on Windows Python 3.11. The existing skip requires Windows symlink
+  permission.
+- Scoped Ruff over the CDC core, CLI, and tests: passed.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
@@ -249,7 +257,7 @@ No work has been deployed, published, submitted, or monetized.
 
 Run the environment-gated PostgreSQL MVCC test against a disposable instance
 (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
-available. Meanwhile, add a real multi-session PostgreSQL worker-contention
-test when an authorized test database is available, then implement a bounded
-CDC event-ingestion primitive that validates ordering, deduplication, and LSN
-checkpoint semantics without creating external replication slots.
+available. Meanwhile, add a platform CDC checkpoint persistence adapter with
+explicit operator-controlled ingestion (but no replication-slot creation), and
+add a real multi-session PostgreSQL worker-contention test when an authorized
+test database is available.
