@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/sql-regression", label: "SQL Regression", icon: ShieldCheck },
   { href: "/join-audit", label: "Join Auditor", icon: GitMerge },
   { href: "/contracts", label: "Contracts", icon: ClipboardCheck },
+  { href: "/shadow-runs", label: "Shadow Runs", icon: GitPullRequestArrow },
   { href: "/simulation", label: "Simulation", icon: FlaskConical },
   { href: "/specialists", label: "Specialists", icon: Brain },
   { href: "/evaluation", label: "Evaluation", icon: BarChart3 },
@@ -35,6 +36,7 @@ const NAV_COPY: Record<string, string> = {
   "/sql-regression": "Gate metric SQL changes",
   "/join-audit": "Profile join cardinality",
   "/contracts": "Version data invariants",
+  "/shadow-runs": "Gate candidate metrics",
   "/simulation": "What-if scenario analysis",
   "/specialists": "Specialized agent skills",
   "/evaluation": "Benchmarks and audits",

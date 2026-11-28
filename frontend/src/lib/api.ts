@@ -508,3 +508,41 @@ export async function createMetricContract(input: { workspace_id: string; name: 
 export async function evaluateMetricContract(contractId: string, input: { workspace_id: string; dataset_version_id: string }, token?: string | null) {
   return apiFetch<{ contract: MetricContractRead; evaluation: ContractEvaluation }>(`/api/v1/metrictrace/contracts/${encodeURIComponent(contractId)}/evaluations`, token, { method: "POST", body: JSON.stringify(input) });
 }
+
+export interface ShadowExecutionResult {
+  id: string;
+  status: "PASS" | "FAIL";
+  policy_id: string;
+  input_fingerprint: string;
+  report: {
+    dataset_content_hash: string;
+    policy_hash: string;
+    regression: SqlRegressionResult["regression"];
+    required_contract: { id: string; definition_hash: string; report: ContractEvaluation["report"]["report"] } | null;
+  };
+}
+
+export async function createRegressionPolicy(input: {
+  workspace_id: string;
+  name: string;
+  max_absolute_difference?: string;
+  max_percent_difference?: string;
+  required_contract_id?: string;
+}, token?: string | null) {
+  return apiFetch<{ policy_id: string; version: number; definition_hash: string }>("/api/v1/metrictrace/regression-policies", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function executeShadowRun(input: {
+  workspace_id: string;
+  policy_id: string;
+  baseline_definition_id: string;
+  candidate_definition_id: string;
+  dataset_version_id: string;
+  table?: { schema: string; table: string };
+}, token?: string | null) {
+  return apiFetch<ShadowExecutionResult>("/api/v1/metrictrace/shadow-executions", token, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function promoteMetricDefinition(definitionId: string, input: { workspace_id: string; shadow_execution_id: string }, token?: string | null) {
+  return apiFetch<{ promotion_id: string; candidate_definition_id: string; previous_definition_id: string | null; evidence_fingerprint: string }>(`/api/v1/metrictrace/metric-definitions/${encodeURIComponent(definitionId)}/promotions`, token, { method: "POST", body: JSON.stringify(input) });
+}

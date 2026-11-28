@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/sql-regression", icon: ShieldCheck, label: "SQL Regression" },
   { href: "/join-audit", icon: GitMerge, label: "Join Auditor" },
   { href: "/contracts", icon: ClipboardCheck, label: "Contracts" },
+  { href: "/shadow-runs", icon: GitPullRequestArrow, label: "Shadow Runs" },
   { href: "/simulation", icon: FlaskConical, label: "Simulation" },
   { href: "/specialists", icon: Brain, label: "Specialists" },
   { href: "/evaluation", icon: BarChart3, label: "Evaluation" },
@@ -37,6 +38,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/sql-regression": "SQL regression gates",
   "/join-audit": "SQL join diagnostics",
   "/contracts": "Metric contracts",
+  "/shadow-runs": "Shadow execution gates",
   "/simulation": "What-if simulation",
   "/specialists": "Specialist agents",
   "/evaluation": "Benchmarks and audits",
