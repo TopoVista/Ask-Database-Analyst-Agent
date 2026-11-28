@@ -9,9 +9,8 @@
 - [ ] Validate Linux and any claimed agent-host configuration.
 - [x] Generate and inspect the single-skill ZIP: 6 text files, 7,572 bytes, no prohibited artifacts or secret-pattern matches.
 - [x] Generate SHA-256 checksums for wheel, source distribution, and ZIP.
-- [x] Build and validate the separately versioned `0.1.1rc1` archive that
-  removes the current-package off-platform-routing text; see
-  `../RELEASE_CANDIDATE_0.1.1rc1.md`.
+- [x] Build and validate the separately versioned `0.1.1` archive that removes
+  the current-package off-platform-routing text while preserving 0.1.0.
 - [ ] Complete creator account, eligible payout/KYC setup, manual upload, and
   independent review/approval.
 

@@ -3,7 +3,7 @@ name: historical-metric-debugger
 description: Execute an evidence-backed four-way SQL replay over user-authorized historical CSV or Parquet snapshots to determine whether a metric changed because of data, SQL logic, or their interaction.
 metadata:
   summary: Deterministically replay two metric definitions across two retained datasets.
-  version: 0.1.1rc1
+  version: 0.1.1
   tags: [metrics, sql, data-quality, debugging]
 ---
 

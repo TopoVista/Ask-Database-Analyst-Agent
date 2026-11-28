@@ -3,7 +3,7 @@
 ## Listing values
 
 - Product name: **MetricTrace — SQL & Data Regression Debugger**
-- Version: **0.1.0**
+- Version: **0.1.1**
 - Price: **$7.99**, one-time purchase
 - Execution model: **local-first**
 - Supported formats: **CSV and Parquet**
@@ -13,10 +13,9 @@
 ## Upload
 
 1. Recheck the current Agensi packaging and terms pages immediately before upload.
-2. **Do not upload the frozen `historical-metric-debugger.zip` archive.** Its
-   current off-platform-routing wording is a documented submission risk; see
-   `MARKETPLACE_RECHECK_2026-11-28.md`. Upload only a separately versioned,
-   copyright-holder-authorized replacement after that issue is resolved.
+2. Do not upload the frozen `historical-metric-debugger.zip` archive. Upload
+   `historical-metric-debugger-0.1.1.zip` only after the required manual
+   creator-account and listing review steps are complete.
 3. Use the text in `LISTING.md`, `FAQ.md`, `SECURITY.md`, and `KNOWN_LIMITATIONS.md` for the listing and buyer-facing disclosures.
 4. Disclose that the temporary self-contained script requires Python 3.11+, DuckDB 1.1.3, and SQLGlot 25.31.4. The buyer/host must authorize dependency installation; do not promise execution on a host that forbids it.
 5. Include the $7.99 one-time price only after reviewing the listing preview. Do not claim Linux, macOS, MCP, or hosted Platform support as part of this marketplace skill.
