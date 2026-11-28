@@ -5,6 +5,7 @@ import json
 import duckdb
 import pytest
 
+from metrictrace_sdk.cli import main
 from metrictrace_sdk.local_replay import (
     LocalReplayError,
     LocalReplayLimits,
@@ -13,7 +14,7 @@ from metrictrace_sdk.local_replay import (
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, verify_report
+from metrictrace_sdk.reporting import create_report, reproduce_report, verify_report
 
 
 def test_lite_multi_table_replay_and_report_integrity(tmp_path):
@@ -36,10 +37,62 @@ def test_lite_multi_table_replay_and_report_integrity(tmp_path):
         "new_data_new_definition": "80",
     }
     report = create_report(old, new, old_sql, new_sql, replay, limits)
+    receipt = report["decision_receipt"]
+    assert receipt["scope"] == "local_file_replay"
+    assert receipt["dataset_version_identifiers"] is None
+    assert receipt["compiler"]["name"] == "sqlglot"
     assert verify_report(report)["valid"] is True
     tampered = json.loads(json.dumps(report))
     tampered["replay"]["cells"]["new_data_new_definition"] = "81"
     assert verify_report(tampered)["integrity_valid"] is False
+
+
+def test_report_reproduction_checks_exact_evidence_before_rerunning(tmp_path):
+    old = tmp_path / "old.csv"
+    new = tmp_path / "new.csv"
+    old.write_text("amount\n10\n", encoding="utf-8")
+    new.write_text("amount\n8\n", encoding="utf-8")
+    limits = LocalReplayLimits(timeout_seconds=15)
+    old_sql = new_sql = "SELECT SUM(amount) FROM source_data"
+    report = create_report(
+        str(old), str(new), old_sql, new_sql,
+        run_local_four_way(str(old), str(new), old_sql, new_sql, limits), limits,
+    )
+
+    reproduced = reproduce_report(report, str(old), str(new), old_sql, new_sql, limits=limits)
+    assert reproduced["structural_valid"] is True
+    assert reproduced["integrity_valid"] is True
+    assert reproduced["reexecution"]["status"] == "REPRODUCED"
+
+    new.write_text("amount\n9\n", encoding="utf-8")
+    mismatched = reproduce_report(report, str(old), str(new), old_sql, new_sql, limits=limits)
+    assert mismatched["reexecution"]["status"] == "INPUT_MISMATCH"
+    assert mismatched["reexecution"]["mismatches"][0]["kind"] == "dataset_identity_mismatch"
+
+
+def test_report_reproduction_cli_returns_structured_success(tmp_path, capsys):
+    old = tmp_path / "old.csv"
+    new = tmp_path / "new.csv"
+    report_path = tmp_path / "report.json"
+    old.write_text("amount\n10\n", encoding="utf-8")
+    new.write_text("amount\n8\n", encoding="utf-8")
+    sql = "SELECT SUM(amount) FROM source_data"
+    limits = LocalReplayLimits(timeout_seconds=15)
+    report_path.write_text(
+        json.dumps(
+            create_report(
+                str(old), str(new), sql, sql,
+                run_local_four_way(str(old), str(new), sql, sql, limits), limits,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    assert main([
+        "reproduce-report", "--report", str(report_path), "--old-dataset", str(old),
+        "--new-dataset", str(new), "--old-sql", sql, "--new-sql", sql,
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["reproduction"]["reexecution"]["status"] == "REPRODUCED"
 
 
 def test_lite_blocks_undeclared_tables_and_file_functions(tmp_path):

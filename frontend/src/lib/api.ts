@@ -294,3 +294,48 @@ export interface MetricTraceDemoResult {
 export async function runMetricTraceDemo(token?: string | null) {
   return apiFetch<MetricTraceDemoResult>("/api/v1/metrictrace/demo", token, { method: "POST" });
 }
+
+export interface ReplayOptions {
+  dataset_versions: Array<{ id: string; source_id: string; source_name: string; captured_at: string; content_hash: string }>;
+  metric_definitions: Array<{ id: string; metric_id: string; metric_name: string; version: string; sql_hash: string }>;
+}
+
+export interface ReplayWorkspace {
+  workspace_id: string;
+  options: ReplayOptions;
+}
+
+export async function getReplayWorkspace(token?: string | null) {
+  return apiFetch<ReplayWorkspace>("/api/v1/metrictrace/replay-workspace", token);
+}
+
+export async function getReplayOptions(workspaceId: string, token?: string | null) {
+  return apiFetch<ReplayOptions>(`/api/v1/metrictrace/replay-options?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export interface ReplayStatus {
+  replay_id: string;
+  status: string;
+  attribution: MetricTraceDemoResult["attribution"];
+  cells: Array<Omit<MetricTraceReplayCell, "status"> & { id: string; status: string; duration_ms: number; job_id: string | null; retryable: boolean }>;
+}
+
+export async function submitReplay(
+  input: { workspace_id: string; old_version_id: string; new_version_id: string; old_definition_id: string; new_definition_id: string },
+  token?: string | null,
+) {
+  return apiFetch<{ replay_id: string; status: string }>("/api/v1/metrictrace/replays", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getReplay(replayId: string, token?: string | null) {
+  return apiFetch<ReplayStatus>(`/api/v1/metrictrace/replays/${encodeURIComponent(replayId)}`, token);
+}
+
+export async function cancelReplay(replayId: string, token?: string | null) {
+  return apiFetch<{ replay_id: string; status: string }>(`/api/v1/metrictrace/replays/${encodeURIComponent(replayId)}`, token, {
+    method: "DELETE",
+  });
+}

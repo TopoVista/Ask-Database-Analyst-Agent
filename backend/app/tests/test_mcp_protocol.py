@@ -37,10 +37,13 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
             tools = await session.list_tools()
             assert {tool.name for tool in tools.tools} == {
                 "compare_local_datasets",
+                "compare_metric_definitions",
                 "evaluate_local_contracts",
                 "check_local_sql_regression",
                 "audit_local_sql_joins",
                 "inspect_dataset",
+                "inspect_lineage",
+                "inspect_sql_lineage",
                 "run_local_metric_replay",
                 "validate_metric_sql",
                 "verify_replay_report",
@@ -53,6 +56,25 @@ async def test_mcp_stdio_protocol_executes_and_rejects_unapproved_paths(tmp_path
                 "validate_metric_sql", {"sql": "SELECT * FROM read_csv_auto('secret.csv')"}
             )
             assert "invalid_sql" in _content(invalid_sql)
+            lineage = await session.call_tool(
+                "inspect_sql_lineage",
+                {"sql": "SELECT SUM(amount) AS total FROM source_data", "allowed_tables": ["source_data"]},
+            )
+            assert json.loads(_content(lineage))["lineage"]["source_tables"] == ["source_data"]
+            definition_comparison = await session.call_tool(
+                "compare_metric_definitions",
+                {
+                    "baseline_sql": "SELECT amount FROM source_data",
+                    "candidate_sql": "SELECT amount, 1 AS revision FROM source_data",
+                    "allowed_tables": ["source_data"],
+                },
+            )
+            assert json.loads(_content(definition_comparison))["comparison"]["change"]["output_columns"]["added"] == ["revision"]
+            remote_lineage = await session.call_tool(
+                "inspect_lineage",
+                {"workspace_id": "workspace-id", "sql": "SELECT * FROM source_data", "allowed_tables": ["source_data"]},
+            )
+            assert "remote_configuration_required" in _content(remote_lineage)
             replay = await session.call_tool(
                 "run_local_metric_replay",
                 {

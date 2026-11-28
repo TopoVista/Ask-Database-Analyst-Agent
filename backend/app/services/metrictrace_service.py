@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -39,6 +39,7 @@ from app.models.connection import DBConnection
 from app.services.job_queue import DurableJobQueue
 from app.models.user import User
 from app.tools.sql_validator import validate_sql
+from metrictrace_sdk.lineage import inspect_sql_lineage
 
 
 class MetricTraceService:
@@ -71,6 +72,44 @@ class MetricTraceService:
             raise LookupError("Workspace not found")
         return workspace
 
+    async def inspect_static_lineage(
+        self, user: User, workspace_id: UUID, sql: str, allowed_tables: list[str]
+    ) -> dict[str, Any]:
+        """Run shared static analysis only after tenant-scoped workspace authorization.
+
+        The request contains SQL text and a declared logical allow-list only;
+        it neither reads datasets nor discloses other workspace metadata.
+        """
+        await self._owned_workspace(user, workspace_id)
+        return inspect_sql_lineage(sql, allowed_tables)
+
+    async def cleanup_stale_snapshot_attempts(
+        self, workspace_id: UUID, retention_seconds: int
+    ) -> dict[str, int]:
+        """Remove only old, unreferenced capture attempts in one workspace.
+
+        This is intentionally a maintenance primitive, not a public endpoint:
+        callers must schedule it under their own operational authorization.
+        """
+        if retention_seconds < 60:
+            raise ValueError("Snapshot attempt retention must be at least 60 seconds.")
+        store = snapshot_store_from_settings(get_settings())
+        referenced = {
+            version.manifest_uri.rsplit("/", 1)[0]
+            for version in (await self.db.execute(
+                select(DatasetVersion).join(MetricSource).where(MetricSource.workspace_id == workspace_id)
+            )).scalars()
+        }
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=retention_seconds)
+        deleted = retained = 0
+        for attempt in store.list_attempts(workspace_id):
+            if attempt.prefix in referenced or attempt.modified_at > cutoff:
+                retained += 1
+                continue
+            store.delete_attempt(workspace_id, attempt.prefix)
+            deleted += 1
+        return {"deleted_attempts": deleted, "retained_attempts": retained}
+
     async def capture_records(
         self,
         workspace: Workspace,
@@ -98,7 +137,13 @@ class MetricTraceService:
         return version
 
     async def create_postgres_source(
-        self, user: User, workspace_id: UUID, connection_id: UUID, name: str, tables: list[CaptureTable]
+        self,
+        user: User,
+        workspace_id: UUID,
+        connection_id: UUID,
+        name: str,
+        tables: list[CaptureTable],
+        schedule_seconds: int | None = None,
     ) -> MetricSource:
         """Register a source without copying its credentials into MetricTrace metadata."""
         workspace = await self._owned_workspace(user, workspace_id)
@@ -112,13 +157,51 @@ class MetricTraceService:
             connection_id=connection.id,
             name=name,
             source_type="postgresql",
-            capture_config={"tables": [{"schema": table.schema, "table": table.table} for table in tables]},
+            capture_config={
+                "tables": [{"schema": table.schema, "table": table.table} for table in tables],
+                "schedule_seconds": schedule_seconds,
+            },
             capture_status="ready",
             capabilities={"consistent_snapshot": "postgresql_repeatable_read"},
         )
         self.db.add(source)
         await self.db.flush()
         return source
+
+    async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
+        """Queue due captures using stable time windows as durable idempotency keys.
+
+        The scheduler does not access credentials or source data. Multiple
+        scheduler processes can observe the same source; the durable-job
+        uniqueness constraint makes a window's capture authoritative once.
+        """
+        now = now or datetime.now(timezone.utc)
+        result = await self.db.execute(
+            select(MetricSource).join(DBConnection, MetricSource.connection_id == DBConnection.id).where(
+                MetricSource.source_type == "postgresql", DBConnection.is_active.is_(True)
+            )
+        )
+        queue = DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds)
+        enqueued = 0
+        for source in result.scalars():
+            interval = source.capture_config.get("schedule_seconds")
+            if isinstance(interval, bool) or not isinstance(interval, int) or interval < 300:
+                continue
+            if source.capture_status in {"queued", "capturing"}:
+                continue
+            window = int(now.timestamp()) // interval
+            job = await queue.enqueue(
+                source.workspace_id,
+                "SNAPSHOT_CAPTURE",
+                {"source_id": str(source.id), "scheduled": True},
+                f"scheduled-snapshot-capture:{source.id}:{window}",
+                max_attempts=3,
+            )
+            if job.status == "QUEUED":
+                source.capture_status = "queued"
+                enqueued += 1
+        await self.db.flush()
+        return enqueued
 
     async def enqueue_postgres_capture(self, user: User, workspace_id: UUID, source_id: UUID):
         """Queue a user-authorized capture; credentials never enter the job payload."""
@@ -230,6 +313,47 @@ class MetricTraceService:
         ):
             raise LookupError("Snapshot capture job not found")
         return job
+
+    async def replay_options_for_user(self, user: User, workspace_id: UUID) -> dict[str, list[dict[str, str]]]:
+        """Return only workspace-owned immutable replay inputs for the UI."""
+        await self._owned_workspace(user, workspace_id)
+        versions = await self.db.execute(
+            select(DatasetVersion, MetricSource)
+            .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+            .where(MetricSource.workspace_id == workspace_id, DatasetVersion.status == "ready")
+            .order_by(DatasetVersion.captured_at.desc())
+        )
+        definitions = await self.db.execute(
+            select(MetricDefinition, Metric)
+            .join(Metric, MetricDefinition.metric_id == Metric.id)
+            .where(Metric.workspace_id == workspace_id)
+            .order_by(Metric.name, MetricDefinition.version)
+        )
+        return {
+            "dataset_versions": [
+                {"id": str(version.id), "source_id": str(source.id), "source_name": source.name,
+                 "captured_at": version.captured_at.isoformat(), "content_hash": version.content_hash}
+                for version, source in versions
+            ],
+            "metric_definitions": [
+                {"id": str(definition.id), "metric_id": str(metric.id), "metric_name": metric.name,
+                 "version": str(definition.version), "sql_hash": definition.normalized_sql_hash}
+                for definition, metric in definitions
+            ],
+        }
+
+    async def replay_workspace_for_user(self, user: User) -> dict[str, Any]:
+        """Return the caller's default workspace and its authorized replay inputs.
+
+        The web client must never infer a workspace identifier from local state.
+        Creating an empty default workspace is the same behavior used by the
+        existing MetricTrace entry points and does not create fixture data.
+        """
+        workspace = await self.workspace_for_user(user)
+        return {
+            "workspace_id": str(workspace.id),
+            "options": await self.replay_options_for_user(user, workspace.id),
+        }
 
     @staticmethod
     def _sql_hash(sql: str) -> str:
@@ -343,6 +467,10 @@ class MetricTraceService:
         owned_definitions = {definition.id: definition for definition in definitions.scalars().all()}
         if set(owned_versions) != {old_version_id, new_version_id} or set(owned_definitions) != {old_definition_id, new_definition_id}:
             raise LookupError("Replay inputs are unavailable in this workspace")
+        if owned_versions[old_version_id].source_id != owned_versions[new_version_id].source_id:
+            raise ValueError("Replay dataset versions must belong to the same data source")
+        if owned_definitions[old_definition_id].metric_id != owned_definitions[new_definition_id].metric_id:
+            raise ValueError("Replay definitions must belong to the same metric")
         replay = ReplayJob(workspace_id=workspace.id, status="queued")
         self.db.add(replay)
         await self.db.flush()
@@ -355,6 +483,34 @@ class MetricTraceService:
             await self.db.flush()
             durable = await queue.enqueue(workspace.id, "REPLAY_CELL_EXECUTION", {"cell_id": str(cell.id)}, f"replay-cell:{cell.id}")
             cell.durable_job_id = durable.id
+        await self.db.flush()
+        return replay
+
+    async def cancel_replay(self, user: User, replay_id: UUID) -> ReplayJob:
+        """Cancel a replay and fence every cell from publishing further results."""
+        replay = await self.db.get(ReplayJob, replay_id, with_for_update=True)
+        if replay is None:
+            raise LookupError("Replay not found")
+        await self._owned_workspace(user, replay.workspace_id)
+        if replay.status in {"completed", "failed", "cancelled"}:
+            return replay
+
+        cells = list(
+            (
+                await self.db.execute(
+                    select(ReplayCell).where(ReplayCell.replay_job_id == replay.id).with_for_update()
+                )
+            ).scalars()
+        )
+        queue = DurableJobQueue(self.db, get_settings().metrictrace_job_lease_seconds)
+        for cell in cells:
+            if cell.durable_job_id:
+                durable = await self.db.get(DurableJob, cell.durable_job_id, with_for_update=True)
+                if durable is not None:
+                    await queue.cancel(durable)
+            if cell.status not in {"completed", "failed", "cancelled"}:
+                cell.status, cell.error = "cancelled", "Cancelled by an authorized user."
+        replay.status, replay.completed_at = "cancelled", datetime.now(timezone.utc)
         await self.db.flush()
         return replay
 

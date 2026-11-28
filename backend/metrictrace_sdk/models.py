@@ -18,3 +18,15 @@ class ReplayResult:
     replay_id: str
     status: str
     attribution: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class StaticLineageRequest:
+    workspace_id: str
+    sql: str
+    tables: list[str]
+
+
+@dataclass(frozen=True)
+class StaticLineageResult:
+    lineage: dict[str, Any]

@@ -16,13 +16,14 @@ from metrictrace_sdk.contracts import ContractError, evaluate_contracts
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets, dataset_diff_markdown
 from metrictrace_sdk.regression import RegressionError, check_sql_regression
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
+from metrictrace_sdk.lineage import LineageError, compare_sql_lineage, inspect_sql_lineage
 from metrictrace_sdk.local_replay import (
     LocalReplayError,
     LocalReplayLimits,
     inspect_datasets,
     run_local_four_way,
 )
-from metrictrace_sdk.reporting import create_report, markdown_report, verify_report
+from metrictrace_sdk.reporting import create_report, markdown_report, reproduce_report, verify_report
 
 EXIT_OK, EXIT_USAGE, EXIT_REMOTE, EXIT_POLICY, EXIT_RESOURCE, EXIT_EXECUTION = range(6)
 
@@ -206,6 +207,16 @@ def build_parser() -> argparse.ArgumentParser:
     join_audit.add_argument("--timeout-seconds", type=float, default=20)
     join_audit.add_argument("--memory-limit", default="256MB")
     join_audit.add_argument("--threads", type=int, default=1)
+    lineage = sub.add_parser("lineage-inspect", help="Inspect static dependencies of authorized read-only metric SQL")
+    lineage.add_argument("--sql")
+    lineage.add_argument("--sql-file")
+    lineage.add_argument("--tables", required=True, help="Comma-separated authorized logical tables")
+    lineage_compare = sub.add_parser("lineage-compare", help="Compare static dependencies of two authorized SQL definitions")
+    lineage_compare.add_argument("--baseline-sql")
+    lineage_compare.add_argument("--candidate-sql")
+    lineage_compare.add_argument("--baseline-sql-file")
+    lineage_compare.add_argument("--candidate-sql-file")
+    lineage_compare.add_argument("--tables", required=True, help="Comma-separated authorized logical tables")
     replay = sub.add_parser("local-replay", help="Run a four-way replay over approved local files")
     _add_local_options(replay)
     replay.add_argument("--format", choices=("json", "markdown"), default="json")
@@ -220,6 +231,11 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-report", help="Verify report integrity and numerical reconciliation"
     )
     verify.add_argument("--report", required=True)
+    reproduce = sub.add_parser(
+        "reproduce-report", help="Re-execute authorized local evidence for a supplied replay report"
+    )
+    reproduce.add_argument("--report", required=True)
+    _add_local_options(reproduce)
     remote = sub.add_parser(
         "replay", help="Submit a replay to an authenticated MetricTrace Platform"
     )
@@ -237,6 +253,15 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--api-url", required=True)
     status.add_argument("--token", default="")
     status.add_argument("--replay-id", required=True)
+    remote_lineage = sub.add_parser(
+        "remote-lineage-inspect", help="Inspect authorized SQL through an authenticated MetricTrace Platform"
+    )
+    remote_lineage.add_argument("--api-url", required=True)
+    remote_lineage.add_argument("--token", default="")
+    remote_lineage.add_argument("--workspace-id", required=True)
+    remote_lineage.add_argument("--sql")
+    remote_lineage.add_argument("--sql-file")
+    remote_lineage.add_argument("--tables", required=True, help="Comma-separated authorized logical tables")
     return parser
 
 
@@ -303,12 +328,38 @@ def main(argv: list[str] | None = None) -> int:
                 limits=_limits(args),
             )
             return _emit({"ok": True, "audit": report})
+        if args.command == "lineage-inspect":
+            report = inspect_sql_lineage(
+                _read_sql(args.sql, args.sql_file, "metric"),
+                [table.strip() for table in args.tables.split(",") if table.strip()],
+            )
+            return _emit({"ok": True, "lineage": report})
+        if args.command == "lineage-compare":
+            report = compare_sql_lineage(
+                _read_sql(args.baseline_sql, args.baseline_sql_file, "baseline"),
+                _read_sql(args.candidate_sql, args.candidate_sql_file, "candidate"),
+                [table.strip() for table in args.tables.split(",") if table.strip()],
+            )
+            return _emit({"ok": True, "lineage_comparison": report})
         if args.command == "verify-report":
             verdict = verify_report(json.loads(Path(args.report).read_text(encoding="utf-8")))
             return _emit(
                 {"ok": verdict["valid"], "verification": verdict},
                 EXIT_OK if verdict["valid"] else EXIT_EXECUTION,
             )
+        if args.command == "reproduce-report":
+            report = json.loads(Path(args.report).read_text(encoding="utf-8"))
+            verdict = reproduce_report(
+                report,
+                _manifest(args.old_manifest, args.old_dataset, "old"),
+                _manifest(args.new_manifest, args.new_dataset, "new"),
+                _read_sql(args.old_sql, args.old_sql_file, "old"),
+                _read_sql(args.new_sql, args.new_sql_file, "new"),
+                limits=_limits(args),
+                parameters=_parameters(args.parameters),
+            )
+            reproduced = verdict["reexecution"]["status"] == "REPRODUCED"
+            return _emit({"ok": reproduced, "reproduction": verdict}, EXIT_OK if reproduced else EXIT_EXECUTION)
         if args.command == "demo":
             with ExitStack() as stack:
                 root = files("metrictrace_sdk.examples")
@@ -330,6 +381,17 @@ def main(argv: list[str] | None = None) -> int:
             client = MetricTraceClient(args.api_url, args.token)
             if args.command == "replay-status":
                 return _emit({"ok": True, "replay": client.get_replay(args.replay_id)})
+            if args.command == "remote-lineage-inspect":
+                from metrictrace_sdk.models import StaticLineageRequest
+
+                result = client.inspect_static_lineage(
+                    StaticLineageRequest(
+                        args.workspace_id,
+                        _read_sql(args.sql, args.sql_file, "metric"),
+                        [table.strip() for table in args.tables.split(",") if table.strip()],
+                    )
+                )
+                return _emit({"ok": True, "lineage": result.lineage})
             result = client.run_four_way_replay(
                 FourWayReplayRequest(
                     args.workspace_id,
@@ -371,7 +433,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             EXIT_USAGE,
         )
-    except (ValueError, LocalReplayError, DatasetDiffError, ContractError, RegressionError, JoinAuditError) as exc:
+    except (ValueError, LocalReplayError, DatasetDiffError, ContractError, RegressionError, JoinAuditError, LineageError) as exc:
         message = str(exc)
         code = EXIT_RESOURCE if "limit" in message or "terminated" in message else EXIT_POLICY
         return _emit(

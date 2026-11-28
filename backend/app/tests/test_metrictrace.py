@@ -3,6 +3,30 @@ from __future__ import annotations
 import pytest
 
 
+async def test_static_lineage_api_uses_authenticated_workspace_scope(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/lineage/inspect",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "sql": "SELECT SUM(amount_inr) AS revenue FROM source_data",
+            "tables": ["source_data"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["lineage"]["source_tables"] == ["source_data"]
+    denied = await client.post(
+        "/api/v1/metrictrace/lineage/inspect",
+        json={
+            "workspace_id": "00000000-0000-0000-0000-000000000000",
+            "sql": "SELECT SUM(amount_inr) FROM source_data",
+            "tables": ["source_data"],
+        },
+    )
+    assert denied.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_canonical_metrictrace_replay_is_deterministic_and_reconciles(client):
     first = await client.post("/api/v1/metrictrace/demo")
@@ -30,3 +54,27 @@ async def test_canonical_metrictrace_replay_is_deterministic_and_reconciles(clie
     second = await client.post("/api/v1/metrictrace/demo")
     assert second.status_code == 200, second.text
     assert second.json()["attribution"] == body["attribution"]
+
+
+async def test_replay_options_are_scoped_to_the_workspace(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.get(f"/api/v1/metrictrace/replay-options?workspace_id={fixture['workspace_id']}")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["dataset_versions"]) >= 2
+    assert len(body["metric_definitions"]) >= 2
+    denied = await client.get("/api/v1/metrictrace/replay-options?workspace_id=00000000-0000-0000-0000-000000000000")
+    assert denied.status_code == 404
+
+
+async def test_replay_workspace_bootstrap_returns_only_the_authenticated_default_workspace(client):
+    empty = await client.get("/api/v1/metrictrace/replay-workspace")
+    assert empty.status_code == 200, empty.text
+    assert empty.json()["workspace_id"]
+    assert empty.json()["options"] == {"dataset_versions": [], "metric_definitions": []}
+
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    populated = await client.get("/api/v1/metrictrace/replay-workspace")
+    assert populated.status_code == 200
+    assert populated.json()["workspace_id"] == fixture["workspace_id"]
+    assert len(populated.json()["options"]["dataset_versions"]) == 2

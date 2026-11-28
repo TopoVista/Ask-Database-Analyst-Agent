@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from metrictrace_sdk.models import FourWayReplayRequest, ReplayResult
+from metrictrace_sdk.models import (
+    FourWayReplayRequest,
+    ReplayResult,
+    StaticLineageRequest,
+    StaticLineageResult,
+)
 
 
 class RemoteMetricTraceError(RuntimeError):
@@ -44,3 +49,8 @@ class MetricTraceClient:
 
     def run_canonical_demo(self) -> dict[str, Any]:
         return self._request("POST", "/api/v1/metrictrace/demo")
+
+    def inspect_static_lineage(self, request: StaticLineageRequest) -> StaticLineageResult:
+        """Inspect tenant-scoped static dependencies through the Platform API."""
+        data = self._request("POST", "/api/v1/metrictrace/lineage/inspect", request.__dict__)
+        return StaticLineageResult(lineage=data["lineage"])

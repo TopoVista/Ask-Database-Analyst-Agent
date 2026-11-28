@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,18 @@ class LocalParquetStorage:
 
     def _version_dir(self, workspace_id: uuid.UUID, source_id: uuid.UUID, version_id: uuid.UUID) -> Path:
         return self.root / "workspaces" / str(workspace_id) / "sources" / str(source_id) / "versions" / str(version_id)
+
+    @staticmethod
+    def _publish_directory(staging_dir: Path, final_dir: Path) -> None:
+        """Retry only transient Windows handle contention around an atomic rename."""
+        for attempt in range(3):
+            try:
+                os.replace(staging_dir, final_dir)
+                return
+            except PermissionError:
+                if attempt == 2:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     def publish_records(
         self, workspace_id: uuid.UUID, source_id: uuid.UUID, records: list[dict[str, Any]]
@@ -59,7 +72,7 @@ class LocalParquetStorage:
             (staging_dir / "manifest.json").write_bytes(manifest_bytes)
             content_hash = hashlib.sha256(manifest_bytes).hexdigest()
             byte_size = parquet_path.stat().st_size
-            os.replace(staging_dir, final_dir)
+            self._publish_directory(staging_dir, final_dir)
             relative_manifest = final_dir.relative_to(self.root).joinpath("manifest.json").as_posix()
             return version_id, relative_manifest, content_hash, byte_size, schema
         except Exception:
