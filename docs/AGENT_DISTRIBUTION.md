@@ -14,10 +14,13 @@ python -m metrictrace_sdk.cli replay --api-url https://metrictrace.example --tok
 The CLI prints one JSON object and exits `0` for success, `2` for invalid
 local values, `3` for a remote API error and `1` for an unexpected failure.
 
-`metrictrace_sdk.mcp_server` is an optional stdio MCP server. It deliberately
-exposes only `run_four_way_replay`, because it maps to a real underlying API.
-State-changing use requires both an API token and explicit mutation enablement.
-No placeholder MCP tools are shipped.
+`metrictrace_sdk.mcp_server` is an optional stdio MCP server. It exposes only
+implemented capabilities: SQL validation; local dataset inspection, diff,
+contract evaluation, regression checks, join audits and four-cell replay;
+static lineage inspection/definition comparison; replay-report verification;
+and authenticated remote lineage inspection. Local data tools require explicit
+`METRICTRACE_ALLOWED_DATA_DIRS`; remote lineage requires a configured API URL
+and token. No placeholder MCP tools are shipped.
 
 The `skills/` tree is a local, portable skill source tree. It is not evidence
 of Agensi compatibility or approval. Agensi requirements were rechecked on
