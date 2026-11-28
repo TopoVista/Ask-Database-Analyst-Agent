@@ -395,3 +395,33 @@ export async function capturePostgresSource(sourceId: string, workspaceId: strin
 export async function getPostgresCapture(sourceId: string, jobId: string, workspaceId: string, token?: string | null) {
   return apiFetch<{ job_id: string; source_id: string; status: string; error: { category: string; message: string } | null; result: { dataset_version_id?: string; row_count?: number } | null }>(`/api/v1/metrictrace/sources/${encodeURIComponent(sourceId)}/captures/${encodeURIComponent(jobId)}?workspace_id=${encodeURIComponent(workspaceId)}`, token);
 }
+
+export interface DatasetDiffResult {
+  old_version_id: string;
+  new_version_id: string;
+  old_table: { schema: string; table: string } | null;
+  new_table: { schema: string; table: string } | null;
+  comparison: {
+    fingerprint: string;
+    schema_changes: Array<{ kind: string; column: string; old_type?: string; new_type?: string }>;
+    key_validation: Record<string, { duplicate_key_groups: number; null_key_rows: number }> | null;
+    summary: { mode: string; comparable: boolean; reason?: string; inserted?: number; deleted?: number; modified?: number; unchanged?: number };
+    records: Array<{ kind: string; key: Record<string, unknown>; changed_columns: string[]; old: Record<string, unknown>; new: Record<string, unknown> }>;
+  };
+}
+
+export async function compareDatasetVersions(input: {
+  workspace_id: string;
+  old_version_id: string;
+  new_version_id: string;
+  key_columns: string[];
+  old_table?: { schema: string; table: string };
+  new_table?: { schema: string; table: string };
+  limit?: number;
+  offset?: number;
+}, token?: string | null) {
+  return apiFetch<DatasetDiffResult>("/api/v1/metrictrace/dataset-diff", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}

@@ -11,8 +11,9 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, StaticLineageRequest
+from app.schemas.metrictrace import DatasetDiffRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
+from metrictrace_sdk.dataset_diff import DatasetDiffError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
@@ -50,6 +51,32 @@ async def list_metric_sources(
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"sources": sources}
+
+
+@router.post("/dataset-diff")
+async def compare_dataset_versions(
+    request: DatasetDiffRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Compare two authorized immutable dataset versions via the shared SDK core."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).compare_dataset_versions(
+            user,
+            UUID(request.workspace_id),
+            UUID(request.old_version_id),
+            UUID(request.new_version_id),
+            request.key_columns,
+            old_table=CaptureTable(request.old_table.schema_name, request.old_table.table) if request.old_table else None,
+            new_table=CaptureTable(request.new_table.schema_name, request.new_table.table) if request.new_table else None,
+            limit=request.limit,
+            offset=request.offset,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (DatasetDiffError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/lineage/inspect")

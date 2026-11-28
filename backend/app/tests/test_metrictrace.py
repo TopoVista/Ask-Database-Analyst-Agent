@@ -103,3 +103,23 @@ async def test_metric_sources_are_listed_only_for_the_authenticated_workspace(cl
 
     denied = await client.get("/api/v1/metrictrace/sources?workspace_id=00000000-0000-0000-0000-000000000000")
     assert denied.status_code == 404
+
+
+async def test_dataset_diff_uses_owned_immutable_versions_without_accepting_paths(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/dataset-diff",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "old_version_id": fixture["inputs"]["old_dataset_version"],
+            "new_version_id": fixture["inputs"]["new_dataset_version"],
+            "key_columns": ["order_id"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["old_version_id"] == fixture["inputs"]["old_dataset_version"]
+    assert body["comparison"]["summary"] == {
+        "mode": "stable_key", "comparable": True, "inserted": 0, "deleted": 0, "modified": 2, "unchanged": 0,
+    }
+    assert {record["key"]["order_id"] for record in body["comparison"]["records"]} == {"a-1", "a-2"}

@@ -38,6 +38,17 @@ class PostgresDiscoveryRequest(BaseModel):
     connection_id: str
 
 
+class DatasetDiffRequest(BaseModel):
+    workspace_id: str
+    old_version_id: str
+    new_version_id: str
+    key_columns: list[str] = Field(default_factory=list, max_length=16)
+    old_table: CaptureTableRequest | None = None
+    new_table: CaptureTableRequest | None = None
+    limit: int = Field(default=100, ge=1, le=1_000)
+    offset: int = Field(default=0, ge=0)
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

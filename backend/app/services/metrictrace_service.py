@@ -7,10 +7,13 @@ historical numbers and produces a durable evidence record for every replay.
 from __future__ import annotations
 
 import hashlib
+import json
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -40,6 +43,7 @@ from app.services.job_queue import DurableJobQueue
 from app.models.user import User
 from app.tools.sql_validator import validate_sql
 from metrictrace_sdk.lineage import inspect_sql_lineage
+from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 
 
 class MetricTraceService:
@@ -233,6 +237,125 @@ class MetricTraceService:
             }
             for source in sources
         ]
+
+    async def compare_dataset_versions(
+        self,
+        user: User,
+        workspace_id: UUID,
+        old_version_id: UUID,
+        new_version_id: UUID,
+        key_columns: list[str],
+        *,
+        old_table: CaptureTable | None = None,
+        new_table: CaptureTable | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Run the shared Dataset Diff engine over two owned immutable versions.
+
+        API callers provide version IDs and optional catalog table identities,
+        never a local path or storage key.  Multi-table PostgreSQL snapshots
+        require explicit table selections so data from unrelated tables cannot
+        be compared accidentally.
+        """
+        workspace = await self._owned_workspace(user, workspace_id)
+        versions = await self.db.execute(
+            select(DatasetVersion, MetricSource)
+            .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+            .where(
+                DatasetVersion.id.in_([old_version_id, new_version_id]),
+                DatasetVersion.status == "ready",
+                MetricSource.workspace_id == workspace.id,
+            )
+        )
+        owned_versions = {version.id: version for version, _ in versions.all()}
+        if set(owned_versions) != {old_version_id, new_version_id}:
+            raise LookupError("One or more dataset versions are unavailable in this workspace")
+
+        settings = get_settings()
+        store = snapshot_store_from_settings(settings)
+        with tempfile.TemporaryDirectory(prefix="metrictrace-diff-") as raw_temp:
+            temp_dir = Path(raw_temp)
+            old_path, old_identity = self._materialize_diff_object(
+                store, workspace.id, owned_versions[old_version_id], old_table, temp_dir, "old"
+            )
+            # If the caller selected only one capture table, compare the same
+            # table identity in the newer snapshot by default.
+            effective_new_table = new_table or old_table
+            new_path, new_identity = self._materialize_diff_object(
+                store, workspace.id, owned_versions[new_version_id], effective_new_table, temp_dir, "new"
+            )
+            report = compare_datasets(
+                str(old_path),
+                str(new_path),
+                key_columns=key_columns,
+                limit=limit,
+                offset=offset,
+                allowed_roots=(str(temp_dir),),
+            )
+        return {
+            "old_version_id": str(old_version_id),
+            "new_version_id": str(new_version_id),
+            "old_table": old_identity,
+            "new_table": new_identity,
+            "comparison": report,
+        }
+
+    @staticmethod
+    def _materialize_diff_object(
+        store: Any,
+        workspace_id: UUID,
+        version: DatasetVersion,
+        selected_table: CaptureTable | None,
+        temp_dir: Path,
+        label: str,
+    ) -> tuple[Path, dict[str, str] | None]:
+        """Resolve exactly one manifest object into a private bounded temp file."""
+        try:
+            manifest = json.loads(store.read(workspace_id, version.manifest_uri))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise DatasetDiffError("Dataset version manifest is unavailable or invalid.") from exc
+
+        object_key: str
+        identity: dict[str, str] | None = None
+        tables = manifest.get("tables")
+        if isinstance(tables, list):
+            if selected_table is None:
+                if len(tables) != 1:
+                    raise DatasetDiffError("A table selection is required for a multi-table dataset version.")
+                entry = tables[0]
+            else:
+                entry = next(
+                    (
+                        table
+                        for table in tables
+                        if table.get("schema") == selected_table.schema and table.get("table") == selected_table.table
+                    ),
+                    None,
+                )
+                if entry is None:
+                    raise DatasetDiffError(f"Selected table {selected_table.identity} is unavailable in this dataset version.")
+            object_key = str(entry.get("object", {}).get("key", ""))
+            identity = {"schema": str(entry["schema"]), "table": str(entry["table"])}
+        else:
+            if selected_table is not None:
+                raise DatasetDiffError("This single-table dataset version does not support a table selection.")
+            objects = manifest.get("objects")
+            if not isinstance(objects, list) or len(objects) != 1:
+                raise DatasetDiffError("Dataset version does not contain one comparable Parquet object.")
+            relative_key = objects[0].get("key")
+            if not isinstance(relative_key, str) or not relative_key.endswith(".parquet"):
+                raise DatasetDiffError("Dataset version does not contain a Parquet object.")
+            object_key = f"{version.manifest_uri.rsplit('/', 1)[0]}/{relative_key}"
+
+        if not object_key.endswith(".parquet"):
+            raise DatasetDiffError("Dataset version does not contain a Parquet object.")
+        destination = temp_dir / f"{label}.parquet"
+        try:
+            destination.write_bytes(store.read(workspace_id, object_key))
+        except (OSError, ValueError) as exc:
+            raise DatasetDiffError("Dataset version object is unavailable.") from exc
+        return destination, identity
 
     async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
         """Queue due captures using stable time windows as durable idempotency keys.
