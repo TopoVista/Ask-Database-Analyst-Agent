@@ -680,7 +680,7 @@ class MetricTraceService:
         await self._owned_workspace(user, replay.workspace_id)
         existing = (await self.db.execute(select(DecisionReceipt).where(DecisionReceipt.replay_job_id == replay.id))).scalars().first()
         if existing:
-            return self._receipt_read(existing)
+            return await self._receipt_read(existing)
         if replay.status != "completed" or not replay.attribution:
             raise ValueError("A decision receipt requires a completed reconciled replay.")
         rows = list((await self.db.execute(
@@ -727,18 +727,53 @@ class MetricTraceService:
         receipt = DecisionReceipt(workspace_id=replay.workspace_id, replay_job_id=replay.id, integrity_sha256=payload["integrity_sha256"], payload=payload)
         self.db.add(receipt)
         await self.db.flush()
-        return self._receipt_read(receipt)
+        return await self._receipt_read(receipt)
 
     async def decision_receipt_for_user(self, user: User, receipt_id: UUID) -> dict[str, Any]:
         receipt = await self.db.get(DecisionReceipt, receipt_id)
         if receipt is None:
             raise LookupError("Decision receipt not found")
         await self._owned_workspace(user, receipt.workspace_id)
-        return self._receipt_read(receipt)
+        return await self._receipt_read(receipt)
 
-    @staticmethod
-    def _receipt_read(receipt: DecisionReceipt) -> dict[str, Any]:
-        return {"id": str(receipt.id), "replay_id": str(receipt.replay_job_id), "integrity_sha256": receipt.integrity_sha256, "created_at": receipt.created_at.isoformat(), "receipt": receipt.payload, "verification": verify_platform_decision_receipt(receipt.payload)}
+    async def _receipt_read(self, receipt: DecisionReceipt) -> dict[str, Any]:
+        cells = receipt.payload.get("cells", {})
+        if not isinstance(cells, dict):
+            cells = {}
+        dataset_ids: set[UUID] = set()
+        definition_ids: set[UUID] = set()
+        for cell in cells.values():
+            if not isinstance(cell, dict):
+                continue
+            for target, values in ((dataset_ids, cell.get("dataset")), (definition_ids, cell.get("definition"))):
+                if isinstance(values, dict):
+                    try:
+                        target.add(UUID(str(values.get("id"))))
+                    except (TypeError, ValueError):
+                        continue
+        datasets = {item.id: item for item in (await self.db.execute(select(DatasetVersion).where(DatasetVersion.id.in_(dataset_ids)))).scalars()} if dataset_ids else {}
+        definitions = {item.id: item for item in (await self.db.execute(select(MetricDefinition).where(MetricDefinition.id.in_(definition_ids)))).scalars()} if definition_ids else {}
+        evidence: list[dict[str, str]] = []
+        for label, cell in cells.items():
+            if not isinstance(cell, dict):
+                continue
+            for kind, records, expected_key in (("dataset", datasets, "content_hash"), ("definition", definitions, "sql_hash")):
+                item = cell.get(kind, {})
+                try:
+                    item_id = UUID(str(item.get("id"))) if isinstance(item, dict) else None
+                except (TypeError, ValueError):
+                    item_id = None
+                record = records.get(item_id)
+                expected = item.get(expected_key) if isinstance(item, dict) else None
+                actual = record.content_hash if kind == "dataset" and record else record.normalized_sql_hash if record else None
+                state = "AVAILABLE" if record and expected == actual else "MISSING" if record is None else "HASH_MISMATCH"
+                evidence.append({"cell": str(label), "kind": kind, "state": state})
+        return {
+            "id": str(receipt.id), "replay_id": str(receipt.replay_job_id), "integrity_sha256": receipt.integrity_sha256,
+            "created_at": receipt.created_at.isoformat(), "receipt": receipt.payload,
+            "verification": verify_platform_decision_receipt(receipt.payload),
+            "evidence_availability": {"status": "AVAILABLE" if evidence and all(item["state"] == "AVAILABLE" for item in evidence) else "MISSING_EVIDENCE", "items": evidence, "note": "Availability reflects retained platform metadata; it does not prove source-system retention or custody."},
+        }
 
     @staticmethod
     def _contract_read(contract: MetricContract, evaluation: ContractEvaluation | None = None) -> dict[str, Any]:
