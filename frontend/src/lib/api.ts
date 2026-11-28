@@ -546,3 +546,20 @@ export async function executeShadowRun(input: {
 export async function promoteMetricDefinition(definitionId: string, input: { workspace_id: string; shadow_execution_id: string }, token?: string | null) {
   return apiFetch<{ promotion_id: string; candidate_definition_id: string; previous_definition_id: string | null; evidence_fingerprint: string }>(`/api/v1/metrictrace/metric-definitions/${encodeURIComponent(definitionId)}/promotions`, token, { method: "POST", body: JSON.stringify(input) });
 }
+
+export interface DecisionReceiptResult {
+  id: string;
+  replay_id: string;
+  integrity_sha256: string;
+  created_at: string;
+  verification: { valid: boolean; integrity_valid: boolean; reconciliation_valid: boolean; missing_fields: string[]; note: string };
+  receipt: { scope: string; replay_id: string; created_at: string; attribution: { total_change: string; reconciles: boolean }; cells: Record<string, { result: string; duration_ms: number; execution_fingerprint: string; definition: { id: string; sql_hash: string }; dataset: { id: string; content_hash: string } }>; limitations: string[] };
+}
+
+export async function createDecisionReceipt(replayId: string, token?: string | null) {
+  return apiFetch<DecisionReceiptResult>(`/api/v1/metrictrace/replays/${encodeURIComponent(replayId)}/decision-receipt`, token, { method: "POST" });
+}
+
+export async function getDecisionReceipt(receiptId: string, token?: string | null) {
+  return apiFetch<DecisionReceiptResult>(`/api/v1/metrictrace/decision-receipts/${encodeURIComponent(receiptId)}`, token);
+}

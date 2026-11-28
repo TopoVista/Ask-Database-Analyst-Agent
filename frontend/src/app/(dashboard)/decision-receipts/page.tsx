@@ -1,0 +1,35 @@
+"use client";
+
+import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, CheckCircle2, FileCheck2, Loader2, ShieldCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createDecisionReceipt, getDecisionReceipt, type DecisionReceiptResult } from "@/lib/api";
+
+export default function DecisionReceiptsPage() {
+  const { getToken, isLoaded, userId } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const receiptId = searchParams.get("receipt");
+  const [replayId, setReplayId] = useState("");
+  const receiptQuery = useQuery({ queryKey: ["metrictrace", "decision-receipt", receiptId], queryFn: async () => getDecisionReceipt(receiptId!, await getToken()), enabled: Boolean(receiptId) && isLoaded && Boolean(userId), retry: false });
+  const createMutation = useMutation({ mutationFn: async () => createDecisionReceipt(replayId.trim(), await getToken()), onSuccess: (receipt) => router.replace(`/decision-receipts?receipt=${encodeURIComponent(receipt.id)}`) });
+  return <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6 lg:px-8">
+    <Card className="overflow-hidden"><CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_10%_0%,rgba(82,196,168,0.14),transparent_38%)]"><Badge className="w-fit border-success/20 bg-success/10 text-success">Integrity evidence</Badge><CardTitle className="mt-4 text-3xl">Decision Receipts</CardTitle><CardDescription className="mt-3 max-w-3xl text-base text-fg/72">Create a durable receipt for a completed Replay Lab run. It preserves exact evidence identifiers and attribution with an integrity digest; it is not a digital signature.</CardDescription></CardHeader></Card>
+    <Card><CardHeader><CardTitle>Create or reopen a receipt</CardTitle><CardDescription>Paste the completed replay ID from Replay Lab. Repeating the action returns the same receipt instead of generating new evidence.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3 sm:flex-row"><label className="min-w-0 flex-1"><span className="sr-only">Completed replay ID</span><input value={replayId} onChange={(event) => setReplayId(event.target.value)} placeholder="Completed replay UUID" className="h-11 w-full rounded-2xl border border-white/10 bg-[rgba(8,14,24,0.92)] px-4 font-mono text-sm text-fg placeholder:font-sans placeholder:text-muted-fg" /></label><Button onClick={() => createMutation.mutate()} disabled={!replayId.trim() || createMutation.isPending} aria-busy={createMutation.isPending}>{createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{createMutation.isPending ? "Creating" : "Create receipt"}</Button></CardContent></Card>
+    {createMutation.error && <ErrorNotice text={errorText(createMutation.error, "Receipt creation failed.")} />}
+    {receiptQuery.isLoading && <Card aria-busy="true"><CardContent className="flex min-h-32 items-center justify-center gap-3 text-sm text-muted-fg"><Loader2 className="h-5 w-5 animate-spin text-accent" />Loading receipt evidence…</CardContent></Card>}
+    {receiptQuery.error && <ErrorNotice text={errorText(receiptQuery.error, "Receipt evidence could not be loaded.")} />}
+    {receiptQuery.data && <ReceiptEvidence receipt={receiptQuery.data} />}
+    {!receiptId && !createMutation.isPending && <Card><CardContent className="py-12 text-center text-sm text-muted-fg">No receipt is selected. A completed replay is required; failed or incomplete replays cannot produce a decision receipt.</CardContent></Card>}
+  </div>;
+}
+
+function ReceiptEvidence({ receipt }: { receipt: DecisionReceiptResult }) { const verification = receipt.verification; return <section className="space-y-6"><Card><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2"><CardTitle>Receipt verification</CardTitle><Badge className={verification.valid ? "border-success/20 bg-success/10 text-success" : "border-danger/20 bg-danger/10 text-danger"}>{verification.valid ? "Valid integrity" : "Invalid integrity"}</Badge></div><CardDescription className="mt-2">Replay <span className="font-mono text-fg">{receipt.replay_id}</span> · created {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(receipt.created_at))}</CardDescription></div><ShieldCheck className={verification.valid ? "h-7 w-7 text-success" : "h-7 w-7 text-danger"} /></div></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><Value label="Digest" value={receipt.integrity_sha256.slice(0, 16)} /><Value label="Reconciles" value={verification.reconciliation_valid ? "Yes" : "No"} /><Value label="Evidence cells" value={String(Object.keys(receipt.receipt.cells).length)} /></CardContent></Card><Card><CardHeader><CardTitle>Exact replay evidence</CardTitle><CardDescription>The receipt stores immutable definition and dataset identifiers, not local paths or credentials.</CardDescription></CardHeader><CardContent className="space-y-3">{Object.entries(receipt.receipt.cells).map(([label, cell]) => <div key={label} className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:grid-cols-[1.4fr_0.7fr_1fr]"><p className="text-sm font-medium text-fg">{label.replaceAll("_", " ")}</p><p className="font-mono text-sm text-fg">{cell.result}</p><p className="break-all text-xs text-muted-fg">dataset {cell.dataset.content_hash.slice(0, 16)} · SQL {cell.definition.sql_hash.slice(0, 16)}</p></div>)}</CardContent></Card><Card><CardHeader><CardTitle>Integrity boundary</CardTitle></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-muted-fg"><p>{verification.note}</p>{receipt.receipt.limitations.map((item) => <p key={item}>• {item}</p>)}</CardContent></Card></section>; }
+function Value({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4"><p className="text-[10px] uppercase tracking-[0.16em] text-muted-fg">{label}</p><p className="mt-2 break-all font-mono text-sm text-fg">{value}</p></div>; }
+function ErrorNotice({ text }: { text: string }) { return <div role="alert" className="flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-red-100"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{text}</span></div>; }
+function errorText(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
