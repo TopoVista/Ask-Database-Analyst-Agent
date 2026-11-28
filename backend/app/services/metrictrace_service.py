@@ -691,13 +691,38 @@ class MetricTraceService:
         )).all())
         if len(rows) != 4 or any(cell.status != "completed" for cell, _, _ in rows):
             raise ValueError("A decision receipt requires four completed replay cells.")
+        dataset_ids = {dataset.id for _, _, dataset in rows}
+        evaluation_rows = list((await self.db.execute(
+            select(ContractEvaluation, MetricContract)
+            .join(MetricContract, ContractEvaluation.contract_id == MetricContract.id)
+            .where(
+                ContractEvaluation.workspace_id == replay.workspace_id,
+                ContractEvaluation.dataset_version_id.in_(dataset_ids),
+            )
+            .order_by(ContractEvaluation.created_at.desc())
+        )).all())
+        latest_evaluations: dict[tuple[UUID, UUID], tuple[ContractEvaluation, MetricContract]] = {}
+        for evaluation, contract in evaluation_rows:
+            latest_evaluations.setdefault((evaluation.contract_id, evaluation.dataset_version_id), (evaluation, contract))
+        contract_outcomes = [
+            {
+                "contract_id": str(contract.id),
+                "definition_hash": contract.definition_hash,
+                "dataset_version_id": str(evaluation.dataset_version_id),
+                "status": evaluation.status,
+                "input_fingerprint": evaluation.input_fingerprint,
+                "outcomes": evaluation.report.get("report", {}).get("outcomes", []),
+                "evaluated_at": evaluation.created_at.isoformat(),
+            }
+            for evaluation, contract in latest_evaluations.values()
+        ]
         payload = create_platform_decision_receipt({
             "schema_version": "1.0", "scope": "platform_four_way_replay", "replay_id": str(replay.id),
             "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "attribution": replay.attribution,
             "cells": {cell.label: {"result": cell.result_text, "duration_ms": cell.duration_ms, "execution_fingerprint": cell.execution_fingerprint, "definition": {"id": str(definition.id), "sql_hash": definition.normalized_sql_hash}, "dataset": {"id": str(dataset.id), "content_hash": dataset.content_hash, "manifest_hash": dataset.content_hash}} for cell, definition, dataset in rows},
-            "contract_outcomes": None,
-            "limitations": ["Receipt integrity is not an authenticated signature.", "Contract outcomes are absent unless separately evaluated and attached."],
+            "contract_outcomes": contract_outcomes,
+            "limitations": ["Receipt integrity is not an authenticated signature.", "Contract outcomes include only evaluations persisted before this receipt was created."],
         })
         receipt = DecisionReceipt(workspace_id=replay.workspace_id, replay_job_id=replay.id, integrity_sha256=payload["integrity_sha256"], payload=payload)
         self.db.add(receipt)

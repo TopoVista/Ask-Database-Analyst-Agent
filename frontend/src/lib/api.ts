@@ -553,7 +553,7 @@ export interface DecisionReceiptResult {
   integrity_sha256: string;
   created_at: string;
   verification: { valid: boolean; integrity_valid: boolean; reconciliation_valid: boolean; missing_fields: string[]; note: string };
-  receipt: { scope: string; replay_id: string; created_at: string; attribution: { total_change: string; reconciles: boolean }; cells: Record<string, { result: string; duration_ms: number; execution_fingerprint: string; definition: { id: string; sql_hash: string }; dataset: { id: string; content_hash: string } }>; limitations: string[] };
+  receipt: { scope: string; replay_id: string; created_at: string; attribution: { total_change: string; reconciles: boolean }; cells: Record<string, { result: string; duration_ms: number; execution_fingerprint: string; definition: { id: string; sql_hash: string }; dataset: { id: string; content_hash: string } }>; contract_outcomes: Array<{ contract_id: string; definition_hash: string; dataset_version_id: string; status: string; outcomes: Array<{ id: string; status: string }> }>; limitations: string[] };
 }
 
 export async function createDecisionReceipt(replayId: string, token?: string | null) {

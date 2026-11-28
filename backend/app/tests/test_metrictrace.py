@@ -297,6 +297,30 @@ async def test_decision_receipt_persists_and_verifies_completed_replay(client):
     assert body["verification"]["valid"] is True
     assert body["receipt"]["attribution"]["reconciles"] is True
     assert len(body["receipt"]["cells"]) == 4
+    assert body["receipt"]["contract_outcomes"] == []
     fetched = await client.get(f"/api/v1/metrictrace/decision-receipts/{body['id']}")
     assert fetched.status_code == 200
     assert fetched.json()["integrity_sha256"] == body["integrity_sha256"]
+
+
+async def test_decision_receipt_binds_persisted_contract_outcomes(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    created_contract = await client.post(
+        "/api/v1/metrictrace/contracts",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Receipt revenue contract",
+            "contracts": [{"id": "non-negative", "type": "non_negative", "table": "source_data", "column": "amount_inr"}],
+        },
+    )
+    assert created_contract.status_code == 201
+    evaluated = await client.post(
+        f"/api/v1/metrictrace/contracts/{created_contract.json()['contract']['id']}/evaluations",
+        json={"workspace_id": fixture["workspace_id"], "dataset_version_id": fixture["inputs"]["old_dataset_version"]},
+    )
+    assert evaluated.status_code == 201
+    receipt = await client.post(f"/api/v1/metrictrace/replays/{fixture['replay_id']}/decision-receipt")
+    assert receipt.status_code == 201
+    outcomes = receipt.json()["receipt"]["contract_outcomes"]
+    assert outcomes[0]["status"] == "PASS"
+    assert outcomes[0]["dataset_version_id"] == fixture["inputs"]["old_dataset_version"]
