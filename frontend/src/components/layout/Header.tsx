@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow, FileCheck2 } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow, FileCheck2, Network } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/contracts", icon: ClipboardCheck, label: "Contracts" },
   { href: "/shadow-runs", icon: GitPullRequestArrow, label: "Shadow Runs" },
   { href: "/decision-receipts", icon: FileCheck2, label: "Decision Receipts" },
+  { href: "/lineage", icon: Network, label: "Lineage" },
   { href: "/simulation", icon: FlaskConical, label: "Simulation" },
   { href: "/specialists", icon: Brain, label: "Specialists" },
   { href: "/evaluation", icon: BarChart3, label: "Evaluation" },
@@ -41,6 +42,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/contracts": "Metric contracts",
   "/shadow-runs": "Shadow execution gates",
   "/decision-receipts": "Decision evidence",
+  "/lineage": "Versioned lineage",
   "/simulation": "What-if simulation",
   "/specialists": "Specialist agents",
   "/evaluation": "Benchmarks and audits",

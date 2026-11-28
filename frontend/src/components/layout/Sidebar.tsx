@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow, FileCheck2 } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive, ShieldCheck, GitMerge, ClipboardCheck, GitPullRequestArrow, FileCheck2, Network } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/contracts", label: "Contracts", icon: ClipboardCheck },
   { href: "/shadow-runs", label: "Shadow Runs", icon: GitPullRequestArrow },
   { href: "/decision-receipts", label: "Decision Receipts", icon: FileCheck2 },
+  { href: "/lineage", label: "Lineage", icon: Network },
   { href: "/simulation", label: "Simulation", icon: FlaskConical },
   { href: "/specialists", label: "Specialists", icon: Brain },
   { href: "/evaluation", label: "Evaluation", icon: BarChart3 },
@@ -39,6 +40,7 @@ const NAV_COPY: Record<string, string> = {
   "/contracts": "Version data invariants",
   "/shadow-runs": "Gate candidate metrics",
   "/decision-receipts": "Verify decision evidence",
+  "/lineage": "Trace metric dependencies",
   "/simulation": "What-if scenario analysis",
   "/specialists": "Specialized agent skills",
   "/evaluation": "Benchmarks and audits",

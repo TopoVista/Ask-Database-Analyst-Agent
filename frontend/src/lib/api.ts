@@ -564,3 +564,21 @@ export async function createDecisionReceipt(replayId: string, token?: string | n
 export async function getDecisionReceipt(receiptId: string, token?: string | null) {
   return apiFetch<DecisionReceiptResult>(`/api/v1/metrictrace/decision-receipts/${encodeURIComponent(receiptId)}`, token);
 }
+
+export interface MetricLineageSnapshotResult {
+  id: string;
+  definition_id: string;
+  dataset_version_id: string;
+  fingerprint: string;
+  created_at: string;
+  lineage: {
+    source_tables: string[];
+    output_columns: Array<{ name: string; expression: string; source_columns: Array<{ relation: string | null; column: string; relation_kind: string }>; transformations: string[] }>;
+    uncertainty: Array<{ kind: string; detail: string }>;
+    binding: { definition_hash: string; dataset_content_hash: string; authorized_tables: string[] };
+  };
+}
+
+export async function snapshotMetricLineage(definitionId: string, input: { workspace_id: string; dataset_version_id: string }, token?: string | null) {
+  return apiFetch<MetricLineageSnapshotResult>(`/api/v1/metrictrace/metric-definitions/${encodeURIComponent(definitionId)}/lineage`, token, { method: "POST", body: JSON.stringify(input) });
+}
