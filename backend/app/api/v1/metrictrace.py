@@ -11,9 +11,10 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import DatasetDiffRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, StaticLineageRequest
+from app.schemas.metrictrace import DatasetDiffRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
+from metrictrace_sdk.regression import RegressionError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
@@ -76,6 +77,32 @@ async def compare_dataset_versions(
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (DatasetDiffError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/sql-regression")
+async def check_sql_regression(
+    request: SqlRegressionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Evaluate baseline and candidate read-only SQL on one immutable version."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).check_sql_regression_for_version(
+            user,
+            UUID(request.workspace_id),
+            UUID(request.dataset_version_id),
+            request.baseline_sql,
+            request.candidate_sql,
+            table=CaptureTable(request.table.schema_name, request.table.table) if request.table else None,
+            max_absolute_difference=request.max_absolute_difference,
+            max_percent_difference=request.max_percent_difference,
+            parameters=request.parameters,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (RegressionError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 

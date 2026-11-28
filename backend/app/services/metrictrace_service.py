@@ -44,6 +44,7 @@ from app.models.user import User
 from app.tools.sql_validator import validate_sql
 from metrictrace_sdk.lineage import inspect_sql_lineage
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
+from metrictrace_sdk.regression import check_sql_regression
 
 
 class MetricTraceService:
@@ -299,6 +300,54 @@ class MetricTraceService:
             "old_table": old_identity,
             "new_table": new_identity,
             "comparison": report,
+        }
+
+    async def check_sql_regression_for_version(
+        self,
+        user: User,
+        workspace_id: UUID,
+        dataset_version_id: UUID,
+        baseline_sql: str,
+        candidate_sql: str,
+        *,
+        table: CaptureTable | None = None,
+        max_absolute_difference: str | None = None,
+        max_percent_difference: str | None = None,
+        parameters: dict[str, object] | None = None,
+    ) -> dict[str, Any]:
+        """Run the shared SQL regression engine against one owned snapshot."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        version_result = await self.db.execute(
+            select(DatasetVersion)
+            .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+            .where(
+                DatasetVersion.id == dataset_version_id,
+                DatasetVersion.status == "ready",
+                MetricSource.workspace_id == workspace.id,
+            )
+        )
+        version = version_result.scalars().first()
+        if version is None:
+            raise LookupError("Dataset version is unavailable in this workspace")
+        store = snapshot_store_from_settings(get_settings())
+        with tempfile.TemporaryDirectory(prefix="metrictrace-regression-") as raw_temp:
+            temp_dir = Path(raw_temp)
+            dataset_path, table_identity = self._materialize_diff_object(
+                store, workspace.id, version, table, temp_dir, "dataset"
+            )
+            report = check_sql_regression(
+                str(dataset_path),
+                baseline_sql,
+                candidate_sql,
+                max_absolute_difference=max_absolute_difference,
+                max_percent_difference=max_percent_difference,
+                parameters=parameters,
+                allowed_roots=(str(temp_dir),),
+            )
+        return {
+            "dataset_version_id": str(dataset_version_id),
+            "table": table_identity,
+            "regression": report,
         }
 
     @staticmethod

@@ -49,6 +49,17 @@ class DatasetDiffRequest(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
+class SqlRegressionRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+    baseline_sql: str = Field(min_length=1, max_length=100_000)
+    candidate_sql: str = Field(min_length=1, max_length=100_000)
+    table: CaptureTableRequest | None = None
+    max_absolute_difference: str | None = Field(default=None, max_length=128)
+    max_percent_difference: str | None = Field(default=None, max_length=128)
+    parameters: dict[str, str | int | float | bool | None] = Field(default_factory=dict, max_length=32)
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

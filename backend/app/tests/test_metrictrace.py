@@ -123,3 +123,22 @@ async def test_dataset_diff_uses_owned_immutable_versions_without_accepting_path
         "mode": "stable_key", "comparable": True, "inserted": 0, "deleted": 0, "modified": 2, "unchanged": 0,
     }
     assert {record["key"]["order_id"] for record in body["comparison"]["records"]} == {"a-1", "a-2"}
+
+
+async def test_sql_regression_runs_shared_engine_against_an_owned_immutable_version(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/sql-regression",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+            "baseline_sql": "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid'",
+            "candidate_sql": "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid' AND channel <> 'marketplace'",
+            "max_absolute_difference": "250000",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()["regression"]
+    assert body["baseline"]["value"] == "2400000"
+    assert body["candidate"]["value"] == "2100000"
+    assert body["gates"] == [{"type": "absolute_difference", "limit": "250000", "actual": "300000", "status": "FAIL"}]
