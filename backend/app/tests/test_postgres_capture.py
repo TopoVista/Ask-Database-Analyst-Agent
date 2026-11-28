@@ -31,8 +31,8 @@ class _Connection:
     def __init__(self):
         self.events: list[str] = []
 
-    def transaction(self, *, isolation, readonly):
-        assert isolation == "repeatable_read"
+    def transaction(self, *, isolation=None, readonly):
+        assert isolation in {None, "repeatable_read"}
         assert readonly is True
         return _Transaction(self)
 
@@ -117,6 +117,36 @@ async def test_capture_rejects_unbounded_numeric_before_writing_objects(tmp_path
         await capture.capture("postgresql://example.test/db", uuid4(), uuid4(), [CaptureTable("public", "payments")])
     assert raised.value.category == "unsupported_type"
     assert not list(tmp_path.rglob("*.parquet"))
+
+
+@pytest.mark.asyncio
+async def test_discovery_reports_unsupported_tables_without_reading_table_rows(tmp_path):
+    class DiscoveryConnection(_Connection):
+        async def fetch(self, query, *args):
+            if "information_schema.tables" in query:
+                assert args == (2,)
+                return [
+                    {"table_schema": "sales", "table_name": "orders"},
+                    {"table_schema": "sales", "table_name": "events"},
+                ]
+            schema, table = args
+            if "information_schema.columns" in query and table == "events":
+                return [{"column_name": "payload", "data_type": "jsonb", "udt_name": "jsonb", "is_nullable": "YES", "numeric_precision": None, "numeric_scale": None}]
+            return await super().fetch(query, schema, table)
+
+    connection = DiscoveryConnection()
+
+    async def connect(_):
+        return connection
+
+    discovery = PostgresSnapshotCapture(LocalSnapshotStore(str(tmp_path)), CaptureLimits(max_tables=2), connect)
+    tables = await discovery.discover_tables("postgresql://example.test/db")
+
+    assert [(item["schema"], item["table"]) for item in tables] == [("sales", "orders"), ("sales", "events")]
+    assert tables[0]["capture_supported"] is True
+    assert tables[0]["primary_key"] == ["id"]
+    assert tables[1]["capture_supported"] is False
+    assert "unsupported PostgreSQL type" in tables[1]["unsupported_reason"]
 
 
 @pytest.mark.asyncio

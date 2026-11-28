@@ -11,12 +11,31 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import PostgresSourceCreate, ReplayRequest, StaticLineageRequest
+from app.schemas.metrictrace import PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
+
+
+@router.post("/sources/postgresql/discover")
+async def discover_postgres_tables(
+    request: PostgresDiscoveryRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Discover only capture-compatible tables for one owned connection."""
+    user = await ensure_user(db, current_user)
+    try:
+        tables = await MetricTraceService(db).discover_postgres_tables(
+            user, UUID(request.workspace_id), UUID(request.connection_id)
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (SnapshotCaptureError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"tables": tables}
 
 
 @router.post("/lineage/inspect")

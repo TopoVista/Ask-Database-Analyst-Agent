@@ -211,6 +211,65 @@ class PostgresSnapshotCapture:
             if connection is not None:
                 await connection.close()
 
+    async def discover_tables(self, connection_string: str) -> list[dict[str, Any]]:
+        """Return a bounded catalog view without reading table data.
+
+        Discovery deliberately uses the same type validation as capture.  A
+        table with an unsupported capture type is disclosed as unavailable,
+        rather than allowing it to be selected and failing after an expensive
+        source read has begun.
+        """
+        connect = self._connect or self._asyncpg_connect
+        connection = None
+        try:
+            connection = await connect(_driver_dsn(connection_string))
+            transaction = connection.transaction(readonly=True)
+            await transaction.start()
+            table_rows = await connection.fetch(
+                """SELECT table_schema, table_name
+                   FROM information_schema.tables
+                   WHERE table_type = 'BASE TABLE'
+                     AND table_schema NOT IN ('pg_catalog', 'information_schema')
+                   ORDER BY table_schema, table_name
+                   LIMIT $1""",
+                self.limits.max_tables,
+            )
+            discovered: list[dict[str, Any]] = []
+            for row in table_rows:
+                table = CaptureTable(schema=row["table_schema"], table=row["table_name"])
+                try:
+                    metadata = await self._table_metadata(connection, table)
+                    discovered.append({
+                        "schema": table.schema,
+                        "table": table.table,
+                        "primary_key": metadata["primary_key"],
+                        "columns": metadata["columns"],
+                        "capture_supported": True,
+                        "unsupported_reason": None,
+                    })
+                except SnapshotCaptureError as exc:
+                    discovered.append({
+                        "schema": table.schema,
+                        "table": table.table,
+                        "primary_key": [],
+                        "columns": [],
+                        "capture_supported": False,
+                        "unsupported_reason": str(exc),
+                    })
+            await transaction.commit()
+            return discovered
+        except SnapshotCaptureError:
+            if connection is not None:
+                await self._safe_rollback(connection)
+            raise
+        except Exception as exc:
+            if connection is not None:
+                await self._safe_rollback(connection)
+            raise SnapshotCaptureError("catalog_discovery_failed", str(exc)) from exc
+        finally:
+            if connection is not None:
+                await connection.close()
+
     async def _asyncpg_connect(self, dsn: str) -> Any:
         try:
             import asyncpg

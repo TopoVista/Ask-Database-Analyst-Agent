@@ -168,6 +168,29 @@ class MetricTraceService:
         await self.db.flush()
         return source
 
+    async def discover_postgres_tables(
+        self, user: User, workspace_id: UUID, connection_id: UUID
+    ) -> list[dict[str, Any]]:
+        """Discover capture-compatible tables for an owned PostgreSQL connection.
+
+        The decrypted DSN stays inside the service and is never persisted in a
+        job payload or returned to the caller.
+        """
+        await self._owned_workspace(user, workspace_id)
+        connection = await ConnectionService(self.db).get_connection(connection_id, user.id)
+        if connection is None or connection.db_type.lower() not in {"postgres", "postgresql"}:
+            raise LookupError("A readable PostgreSQL connection is required.")
+        settings = get_settings()
+        limits = CaptureLimits(
+            batch_rows=settings.metrictrace_capture_batch_rows,
+            max_tables=settings.metrictrace_capture_max_tables,
+            max_rows=settings.metrictrace_capture_max_rows,
+            max_bytes=settings.metrictrace_capture_max_bytes,
+            timeout_seconds=settings.metrictrace_capture_timeout_seconds,
+        )
+        capture = PostgresSnapshotCapture(snapshot_store_from_settings(settings), limits)
+        return await capture.discover_tables(ConnectionService(self.db).build_connection_string(connection))
+
     async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
         """Queue due captures using stable time windows as durable idempotency keys.
 

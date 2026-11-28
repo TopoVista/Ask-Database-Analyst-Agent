@@ -33,6 +33,11 @@ class PostgresSourceCreate(BaseModel):
     schedule_seconds: int | None = Field(default=None, ge=300, le=2_592_000)
 
 
+class PostgresDiscoveryRequest(BaseModel):
+    workspace_id: str
+    connection_id: str
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

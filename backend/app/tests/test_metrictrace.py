@@ -78,3 +78,16 @@ async def test_replay_workspace_bootstrap_returns_only_the_authenticated_default
     assert populated.status_code == 200
     assert populated.json()["workspace_id"] == fixture["workspace_id"]
     assert len(populated.json()["options"]["dataset_versions"]) == 2
+
+
+async def test_postgres_discovery_requires_an_owned_postgres_connection(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/sources/postgresql/discover",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "connection_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 404
+    assert "PostgreSQL connection" in response.json()["detail"]
