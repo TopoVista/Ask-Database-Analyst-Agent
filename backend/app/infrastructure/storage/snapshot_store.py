@@ -174,15 +174,19 @@ class S3SnapshotStore:
 
     def put(self, workspace_id: UUID, key: str, body: bytes) -> ObjectMetadata:
         key = canonical_key(workspace_id, key)
+        if self.exists(workspace_id, key):
+            raise FileExistsError("Immutable storage objects cannot be overwritten.")
         digest = hashlib.sha256(body).hexdigest()
-        # Callers use unique attempt-scoped keys. S3 does not provide a
-        # portable create-if-absent primitive, so a preflight HEAD would add a
-        # race without providing safety. Metadata publication fences authority.
+        # Callers use unique attempt-scoped keys. The preflight protects normal
+        # duplicate calls; authoritative publication additionally remains
+        # fenced by the durable metadata transaction.
         self.client.put_object(Bucket=self.bucket, Key=key, Body=body, Metadata={"sha256": digest})
         return ObjectMetadata(key=key, size_bytes=len(body), sha256=digest)
 
     def put_file(self, workspace_id: UUID, key: str, path: Path) -> ObjectMetadata:
         key = canonical_key(workspace_id, key)
+        if self.exists(workspace_id, key):
+            raise FileExistsError("Immutable storage objects cannot be overwritten.")
         digest = hashlib.sha256()
         with path.open("rb") as handle:
             while chunk := handle.read(1024 * 1024):

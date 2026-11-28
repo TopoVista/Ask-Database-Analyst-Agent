@@ -27,7 +27,7 @@ licenses and notices remain unchanged.
 | Lite local replay, CLI, SDK and MCP | COMPLETE | Existing 0.1.0 artifacts were locally validated before this roadmap continuation. |
 | Four-way replay queue foundation and Replay Lab | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. Replay Lab now discovers the authenticated workspace without fixture creation; it selects authorized source/version/metric/definition pairs, enforces same-source and same-metric compatibility in both client and service layers, submits asynchronously, stores replay IDs in the URL, polls authoritative cell-level state through refreshes, represents queued/running/retryable/failed/cancelled states, supports authorized cancellation, and withholds attribution until all four cells complete. This was committed and pushed as `b9e951d`. PostgreSQL multi-worker experiments and browser E2E validation have not run. |
 | PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. The Data Sources workspace now lists tenant-scoped source/version history, performs bounded catalog discovery on an authorized PostgreSQL connection, classifies each table with the same compatibility rules as capture, registers selected tables, explicitly queues captures, and polls durable capture status. Owner-configured bounded intervals enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
-| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
+| Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. The S3-compatible adapter has protocol-level coverage for MinIO-style endpoint configuration, workspace isolation, immutable duplicate rejection, streamed file metadata, hash verification, paginated attempt listing, and exact generated-attempt cleanup. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. A live MinIO container/service run remains environment-gated. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
 | Dataset diff | PARTIAL | Shared Lite engine compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The platform now adapts tenant-owned immutable version IDs—not user paths or storage keys—to that same engine, materializes one authorized Parquet object per version into bounded private temporary files, requires explicit table choice for multi-table captures, and exposes the result through the Dataset Diff workspace. The `dataset-diff-inspector` skill documents the shared CLI and passes SKILL validation. Historical multi-table capture comparison and marketplace ZIP validation remain untested against live PostgreSQL/MinIO infrastructure. |
 | Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The platform now has tenant-scoped immutable contract-definition versions, explicit historical evaluation actions, durable evidence records bound to exact dataset content hashes and definition hashes, and a Contracts workspace to save/evaluate/view real outcomes. It delegates execution to the shared engine and accepts no user file paths. Shadow execution, transactional promotions, stale-approval fencing, and a release ZIP remain unimplemented. |
@@ -217,6 +217,15 @@ Validation after deterministic investigation reporting:
   requires Windows symlink permission.
 - Scoped Ruff over the reporting core, CLI, MCP server, and tests: passed.
 
+Validation after S3-compatible storage and worker fencing coverage:
+
+- Snapshot storage, S3-compatible protocol adapter, durable queue, and replay
+  worker tests: `10 passed in 7.37s` on Windows Python 3.11.
+- The S3 test double covers the MinIO-relevant API behavior without requiring
+  credentials, an external endpoint, or Docker. A live MinIO service remains
+  unvalidated.
+- Scoped Ruff over storage, queue, worker, and tests: passed.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
@@ -229,7 +238,7 @@ No work has been deployed, published, submitted, or monetized.
 
 Run the environment-gated PostgreSQL MVCC test against a disposable instance
 (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
-available. Meanwhile, validate the S3/MinIO adapter against a protocol-faithful
-test double, add multi-worker failure experiments (claim contention, lease
-expiry, stale-publication rejection, and worker termination), and continue
-CDC/bitemporal capture primitives without needing live Docker.
+available. Meanwhile, add a real multi-session PostgreSQL worker-contention
+test when an authorized test database is available, then implement bitemporal
+capture metadata and a bounded CDC ingestion primitive without needing live
+Docker.
