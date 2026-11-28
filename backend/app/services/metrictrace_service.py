@@ -37,6 +37,8 @@ from app.models.metrictrace import (
     MetricSource,
     ReplayCell,
     ReplayJob,
+    RegressionPolicy,
+    ShadowExecution,
     Workspace,
     WorkspaceMember,
 )
@@ -46,7 +48,7 @@ from app.models.user import User
 from app.tools.sql_validator import validate_sql
 from metrictrace_sdk.lineage import inspect_sql_lineage
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
-from metrictrace_sdk.regression import check_sql_regression
+from metrictrace_sdk.regression import check_sql_regression, validate_regression_thresholds
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
 from metrictrace_sdk.contracts import ContractError, ERROR, PASS, evaluate_contracts
 
@@ -502,6 +504,94 @@ class MetricTraceService:
         self.db.add(evaluation)
         await self.db.flush()
         return {"contract": self._contract_read(contract), "evaluation": self._evaluation_read(evaluation)}
+
+    async def create_regression_policy(
+        self, user: User, workspace_id: UUID, name: str, max_absolute_difference: str | None,
+        max_percent_difference: str | None, required_contract_id: UUID | None,
+    ) -> RegressionPolicy:
+        """Version a gate policy before it can approve any shadow execution."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        if max_absolute_difference is None and max_percent_difference is None:
+            raise ValueError("A regression policy requires an absolute or percentage gate.")
+        contract = None
+        if required_contract_id:
+            contract = await self.db.get(MetricContract, required_contract_id)
+            if contract is None or contract.workspace_id != workspace.id:
+                raise LookupError("Required contract is unavailable in this workspace")
+        # Reuse the shared parser so invalid numeric gate values fail before persistence.
+        validate_regression_thresholds(max_absolute_difference, max_percent_difference)
+        version = (
+            await self.db.execute(select(func.max(RegressionPolicy.version)).where(
+                RegressionPolicy.workspace_id == workspace.id, RegressionPolicy.name == name
+            ))
+        ).scalar_one_or_none()
+        canonical = {"absolute": max_absolute_difference, "percent": max_percent_difference, "contract": str(required_contract_id) if required_contract_id else None}
+        policy = RegressionPolicy(
+            workspace_id=workspace.id, name=name, version=(version or 0) + 1,
+            max_absolute_difference=max_absolute_difference, max_percent_difference=max_percent_difference,
+            required_contract_id=required_contract_id,
+            definition_hash=hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        )
+        self.db.add(policy)
+        await self.db.flush()
+        return policy
+
+    async def execute_shadow_run(
+        self, user: User, workspace_id: UUID, policy_id: UUID, baseline_definition_id: UUID,
+        candidate_definition_id: UUID, dataset_version_id: UUID, table: CaptureTable | None = None,
+    ) -> dict[str, Any]:
+        """Run and persist one candidate gate against exact tenant-owned evidence."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        policy = await self.db.get(RegressionPolicy, policy_id)
+        if policy is None or policy.workspace_id != workspace.id:
+            raise LookupError("Regression policy is unavailable in this workspace")
+        definitions = {item.id: item for item in (await self.db.execute(
+            select(MetricDefinition).join(Metric).where(
+                MetricDefinition.id.in_([baseline_definition_id, candidate_definition_id]), Metric.workspace_id == workspace.id
+            )
+        )).scalars()}
+        if set(definitions) != {baseline_definition_id, candidate_definition_id}:
+            raise LookupError("Metric definitions are unavailable in this workspace")
+        if definitions[baseline_definition_id].metric_id != definitions[candidate_definition_id].metric_id:
+            raise ValueError("Shadow definitions must belong to the same metric")
+        dataset = (await self.db.execute(select(DatasetVersion).join(MetricSource).where(
+            DatasetVersion.id == dataset_version_id, DatasetVersion.status == "ready", MetricSource.workspace_id == workspace.id
+        ))).scalars().first()
+        if dataset is None:
+            raise LookupError("Dataset version is unavailable in this workspace")
+        store = snapshot_store_from_settings(get_settings())
+        with tempfile.TemporaryDirectory(prefix="metrictrace-shadow-") as raw_temp:
+            temp_dir = Path(raw_temp)
+            path, identity = self._materialize_diff_object(store, workspace.id, dataset, table, temp_dir, "dataset")
+            regression = check_sql_regression(
+                str(path), definitions[baseline_definition_id].sql, definitions[candidate_definition_id].sql,
+                max_absolute_difference=policy.max_absolute_difference,
+                max_percent_difference=policy.max_percent_difference, allowed_roots=(str(temp_dir),),
+            )
+            contract_report = None
+            if policy.required_contract_id:
+                contract = await self.db.get(MetricContract, policy.required_contract_id)
+                if contract is None or contract.workspace_id != workspace.id:
+                    raise LookupError("Required contract is unavailable in this workspace")
+                sql_name = str(identity["table"]).lower() if identity else "source_data"
+                contract_report = evaluate_contracts(
+                    {sql_name: str(path)}, contract.contracts, allowed_roots=(str(temp_dir),)
+                )
+        contract_status = PASS if not contract_report or contract_report["summary"]["mandatory_passed"] else "FAIL"
+        status = PASS if regression["status"] == PASS and contract_status == PASS else "FAIL"
+        report = {
+            "dataset_table": identity,
+            "regression": regression,
+            "required_contract": (
+                {"id": str(policy.required_contract_id), "report": contract_report} if contract_report else None
+            ),
+            "policy_hash": policy.definition_hash,
+        }
+        fingerprint = hashlib.sha256(json.dumps({"policy": policy.definition_hash, "dataset": dataset.content_hash, "baseline": definitions[baseline_definition_id].normalized_sql_hash, "candidate": definitions[candidate_definition_id].normalized_sql_hash, "report": report}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        shadow = ShadowExecution(workspace_id=workspace.id, policy_id=policy.id, baseline_definition_id=baseline_definition_id, candidate_definition_id=candidate_definition_id, dataset_version_id=dataset.id, status=status, input_fingerprint=fingerprint, report=report)
+        self.db.add(shadow)
+        await self.db.flush()
+        return {"id": str(shadow.id), "status": shadow.status, "policy_id": str(policy.id), "input_fingerprint": fingerprint, "report": report}
 
     @staticmethod
     def _contract_read(contract: MetricContract, evaluation: ContractEvaluation | None = None) -> dict[str, Any]:

@@ -139,6 +139,40 @@ class ContractEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class RegressionPolicy(Base):
+    """An immutable gate policy referenced by persisted shadow executions."""
+
+    __tablename__ = "regression_policies"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", "version", name="uq_regression_policy_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_absolute_difference: Mapped[str | None] = mapped_column(String(128))
+    max_percent_difference: Mapped[str | None] = mapped_column(String(128))
+    required_contract_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("metric_contracts.id", ondelete="RESTRICT"))
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ShadowExecution(Base):
+    """One candidate-versus-baseline gate on an exact immutable evidence set."""
+
+    __tablename__ = "shadow_executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    policy_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("regression_policies.id", ondelete="RESTRICT"), nullable=False)
+    baseline_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    candidate_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    dataset_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("dataset_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ReplayJob(Base):
     __tablename__ = "replay_jobs"
 
@@ -202,5 +236,7 @@ Index("idx_metrics_workspace", Metric.workspace_id)
 Index("idx_metric_contracts_workspace_name", MetricContract.workspace_id, MetricContract.name)
 Index("idx_contract_evaluations_workspace_created", ContractEvaluation.workspace_id, ContractEvaluation.created_at)
 Index("idx_contract_evaluations_contract_created", ContractEvaluation.contract_id, ContractEvaluation.created_at)
+Index("idx_regression_policies_workspace_name", RegressionPolicy.workspace_id, RegressionPolicy.name)
+Index("idx_shadow_executions_workspace_created", ShadowExecution.workspace_id, ShadowExecution.created_at)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
 Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

@@ -77,6 +77,23 @@ class ContractEvaluateRequest(BaseModel):
     dataset_version_id: str
 
 
+class RegressionPolicyCreateRequest(BaseModel):
+    workspace_id: str
+    name: str = Field(min_length=1, max_length=255)
+    max_absolute_difference: str | None = Field(default=None, max_length=128)
+    max_percent_difference: str | None = Field(default=None, max_length=128)
+    required_contract_id: str | None = None
+
+
+class ShadowExecutionRequest(BaseModel):
+    workspace_id: str
+    policy_id: str
+    baseline_definition_id: str
+    candidate_definition_id: str
+    dataset_version_id: str
+    table: CaptureTableRequest | None = None
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

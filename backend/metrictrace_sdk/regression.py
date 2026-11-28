@@ -28,6 +28,14 @@ def _decimal(value: str | None, name: str) -> Decimal | None:
     return result
 
 
+def validate_regression_thresholds(
+    max_absolute_difference: str | None, max_percent_difference: str | None
+) -> None:
+    """Validate policy thresholds without executing SQL or touching a dataset."""
+    _decimal(max_absolute_difference, "max_absolute_difference")
+    _decimal(max_percent_difference, "max_percent_difference")
+
+
 def check_sql_regression(
     datasets: str | Mapping[str, str],
     baseline_sql: str,
@@ -47,6 +55,7 @@ def check_sql_regression(
         normalized_candidate = validate_metric_sql(candidate_sql, tables)
     except (LocalReplayError, ValueError) as exc:
         raise RegressionError(str(exc)) from exc
+    validate_regression_thresholds(max_absolute_difference, max_percent_difference)
     absolute_limit = _decimal(max_absolute_difference, "max_absolute_difference")
     percent_limit = _decimal(max_percent_difference, "max_percent_difference")
     started = time.perf_counter()

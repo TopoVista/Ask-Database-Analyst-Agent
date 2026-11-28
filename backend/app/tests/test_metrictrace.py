@@ -217,3 +217,32 @@ async def test_metric_contracts_are_versioned_evaluated_and_workspace_scoped(cli
         },
     )
     assert denied.status_code == 404
+
+
+async def test_shadow_execution_persists_an_exact_regression_gate(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    policy = await client.post(
+        "/api/v1/metrictrace/regression-policies",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Revenue candidate threshold",
+            "max_absolute_difference": "250000",
+        },
+    )
+    assert policy.status_code == 201, policy.text
+    shadow = await client.post(
+        "/api/v1/metrictrace/shadow-executions",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "policy_id": policy.json()["policy_id"],
+            "baseline_definition_id": fixture["inputs"]["old_definition"],
+            "candidate_definition_id": fixture["inputs"]["new_definition"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert shadow.status_code == 201, shadow.text
+    body = shadow.json()
+    assert body["status"] == "FAIL"
+    assert body["report"]["regression"]["difference"]["absolute"] == "300000"
+    assert body["report"]["regression"]["gates"][0]["status"] == "FAIL"
+    assert body["input_fingerprint"]

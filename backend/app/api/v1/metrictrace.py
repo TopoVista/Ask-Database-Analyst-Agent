@@ -11,7 +11,7 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
@@ -21,6 +21,46 @@ from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
+
+
+@router.post("/regression-policies", status_code=status.HTTP_201_CREATED)
+async def create_regression_policy(
+    request: RegressionPolicyCreateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    user = await ensure_user(db, current_user)
+    try:
+        policy = await MetricTraceService(db).create_regression_policy(
+            user, UUID(request.workspace_id), request.name, request.max_absolute_difference,
+            request.max_percent_difference,
+            UUID(request.required_contract_id) if request.required_contract_id else None,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (RegressionError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"policy_id": str(policy.id), "version": policy.version, "definition_hash": policy.definition_hash}
+
+
+@router.post("/shadow-executions", status_code=status.HTTP_201_CREATED)
+async def execute_shadow_run(
+    request: ShadowExecutionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Explicitly run candidate SQL under an immutable persisted gate policy."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).execute_shadow_run(
+            user, UUID(request.workspace_id), UUID(request.policy_id), UUID(request.baseline_definition_id),
+            UUID(request.candidate_definition_id), UUID(request.dataset_version_id),
+            CaptureTable(request.table.schema_name, request.table.table) if request.table else None,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (ContractError, DatasetDiffError, RegressionError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/contracts", status_code=status.HTTP_201_CREATED)
