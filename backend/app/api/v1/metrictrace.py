@@ -11,7 +11,7 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, MetricLineageSnapshotRequest, MetricPromotionRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import CdcIngestRequest, ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, MetricLineageSnapshotRequest, MetricPromotionRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
@@ -302,10 +302,22 @@ async def create_postgres_source(request: PostgresSourceCreate, current_user: Au
             request.name,
             [CaptureTable(schema=table.schema_name, table=table.table, valid_from_column=table.valid_from_column, valid_to_column=table.valid_to_column) for table in request.tables],
             request.schedule_seconds,
+            request.cdc_ingestion_enabled,
         )
     except (ValueError, LookupError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"source_id": str(source.id), "status": source.capture_status, "source_type": source.source_type}
+
+
+@router.post("/sources/{source_id}/cdc-events")
+async def ingest_cdc_events(source_id: UUID, request: CdcIngestRequest, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).ingest_cdc_events(user, UUID(request.workspace_id), source_id, request.events)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/sources/{source_id}/captures", status_code=status.HTTP_202_ACCEPTED)

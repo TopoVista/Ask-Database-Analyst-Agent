@@ -28,6 +28,7 @@ from app.infrastructure.storage.snapshot_store import snapshot_store_from_settin
 from app.services.connection_service import ConnectionService
 from app.models.metrictrace import (
     ContractEvaluation,
+    CdcCheckpoint,
     DecisionReceipt,
     DatasetVersion,
     DurableJob,
@@ -55,6 +56,7 @@ from metrictrace_sdk.regression import check_sql_regression, validate_regression
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
 from metrictrace_sdk.contracts import ContractError, ERROR, PASS, evaluate_contracts
 from metrictrace_sdk.reporting import create_platform_decision_receipt, verify_platform_decision_receipt
+from metrictrace_sdk.cdc import validate_cdc_batch
 
 
 class MetricTraceService:
@@ -203,6 +205,7 @@ class MetricTraceService:
         name: str,
         tables: list[CaptureTable],
         schedule_seconds: int | None = None,
+        cdc_ingestion_enabled: bool = False,
     ) -> MetricSource:
         """Register a source without copying its credentials into MetricTrace metadata."""
         workspace = await self._owned_workspace(user, workspace_id)
@@ -219,6 +222,7 @@ class MetricTraceService:
             capture_config={
                 "tables": [{"schema": table.schema, "table": table.table, "valid_from_column": table.valid_from_column, "valid_to_column": table.valid_to_column} for table in tables],
                 "schedule_seconds": schedule_seconds,
+                "cdc_ingestion_enabled": cdc_ingestion_enabled,
             },
             capture_status="ready",
             capabilities={"consistent_snapshot": "postgresql_repeatable_read"},
@@ -226,6 +230,23 @@ class MetricTraceService:
         self.db.add(source)
         await self.db.flush()
         return source
+
+    async def ingest_cdc_events(self, user: User, workspace_id: UUID, source_id: UUID, events: list[dict]) -> dict:
+        await self._owned_workspace(user, workspace_id)
+        source = await self.db.get(MetricSource, source_id)
+        if source is None or source.workspace_id != workspace_id or source.source_type != "postgresql":
+            raise LookupError("PostgreSQL source not found")
+        if not source.capture_config.get("cdc_ingestion_enabled"):
+            raise ValueError("CDC ingestion was not explicitly enabled for this source.")
+        checkpoint = (await self.db.execute(select(CdcCheckpoint).where(CdcCheckpoint.source_id == source_id).with_for_update())).scalars().first()
+        report = validate_cdc_batch(events, checkpoint.acknowledged_lsn if checkpoint else None)
+        if checkpoint is None:
+            checkpoint = CdcCheckpoint(workspace_id=workspace_id, source_id=source_id)
+            self.db.add(checkpoint)
+        checkpoint.acknowledged_lsn = report["acknowledgement_lsn"]
+        checkpoint.accepted_event_count += report["accepted_count"]
+        await self.db.flush()
+        return {"checkpoint_lsn": checkpoint.acknowledged_lsn, **report}
 
     async def discover_postgres_tables(
         self, user: User, workspace_id: UUID, connection_id: UUID

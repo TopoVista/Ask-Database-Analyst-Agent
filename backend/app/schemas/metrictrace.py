@@ -33,6 +33,12 @@ class PostgresSourceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     tables: list[CaptureTableRequest] = Field(min_length=1, max_length=64)
     schedule_seconds: int | None = Field(default=None, ge=300, le=2_592_000)
+    cdc_ingestion_enabled: bool = False
+
+
+class CdcIngestRequest(BaseModel):
+    workspace_id: str
+    events: list[dict[str, Any]] = Field(min_length=1, max_length=10_000)
 
 
 class PostgresDiscoveryRequest(BaseModel):

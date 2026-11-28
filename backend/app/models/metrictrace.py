@@ -73,6 +73,17 @@ class DatasetVersion(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
 
 
+class CdcCheckpoint(Base):
+    __tablename__ = "cdc_checkpoints"
+    __table_args__ = (UniqueConstraint("source_id", name="uq_cdc_checkpoint_source"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_sources.id", ondelete="CASCADE"), nullable=False)
+    acknowledged_lsn: Mapped[str | None] = mapped_column(String(32))
+    accepted_event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class Metric(Base):
     __tablename__ = "metrics"
     __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_metric_workspace_name"),)
@@ -280,6 +291,7 @@ class ReplayCell(Base):
 Index("idx_workspace_members_user", WorkspaceMember.user_id)
 Index("idx_metric_sources_workspace", MetricSource.workspace_id)
 Index("idx_dataset_versions_source_capture", DatasetVersion.source_id, DatasetVersion.captured_at)
+Index("idx_cdc_checkpoints_workspace", CdcCheckpoint.workspace_id)
 Index("idx_metrics_workspace", Metric.workspace_id)
 Index("idx_metric_contracts_workspace_name", MetricContract.workspace_id, MetricContract.name)
 Index("idx_contract_evaluations_workspace_created", ContractEvaluation.workspace_id, ContractEvaluation.created_at)
