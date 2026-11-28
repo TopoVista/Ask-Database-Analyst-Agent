@@ -9,8 +9,9 @@
 - [ ] Validate Linux and any claimed agent-host configuration.
 - [x] Generate and inspect the single-skill ZIP: 6 text files, 7,572 bytes, no prohibited artifacts or secret-pattern matches.
 - [x] Generate SHA-256 checksums for wheel, source distribution, and ZIP.
-- [ ] Resolve the current-package off-platform-routing risk documented in
-  `MARKETPLACE_RECHECK_2026-11-28.md` through a separately versioned archive.
+- [x] Build and validate the separately versioned `0.1.1rc1` archive that
+  removes the current-package off-platform-routing text; see
+  `../RELEASE_CANDIDATE_0.1.1rc1.md`.
 - [ ] Complete creator account, eligible payout/KYC setup, manual upload, and
   independent review/approval.
 
