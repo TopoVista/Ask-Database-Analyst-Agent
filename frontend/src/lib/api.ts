@@ -339,3 +339,59 @@ export async function cancelReplay(replayId: string, token?: string | null) {
     method: "DELETE",
   });
 }
+
+export interface PostgresDiscoveredTable {
+  schema: string;
+  table: string;
+  primary_key: string[];
+  columns: Array<{ column_name: string; data_type: string; is_nullable: string }>;
+  capture_supported: boolean;
+  unsupported_reason: string | null;
+}
+
+export interface MetricSourceRead {
+  id: string;
+  name: string;
+  source_type: string;
+  connection_id: string | null;
+  capture_status: string;
+  tables: Array<{ schema: string; table: string }>;
+  schedule_seconds: number | null;
+  version_count: number;
+  latest_version_id: string | null;
+  latest_captured_at: string | null;
+}
+
+export async function discoverPostgresTables(input: { workspace_id: string; connection_id: string }, token?: string | null) {
+  return apiFetch<{ tables: PostgresDiscoveredTable[] }>("/api/v1/metrictrace/sources/postgresql/discover", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listMetricSources(workspaceId: string, token?: string | null) {
+  return apiFetch<{ sources: MetricSourceRead[] }>(`/api/v1/metrictrace/sources?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}
+
+export async function createPostgresSource(input: {
+  workspace_id: string;
+  connection_id: string;
+  name: string;
+  tables: Array<{ schema: string; table: string }>;
+  schedule_seconds?: number;
+}, token?: string | null) {
+  return apiFetch<{ source_id: string; status: string; source_type: string }>("/api/v1/metrictrace/sources/postgresql", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function capturePostgresSource(sourceId: string, workspaceId: string, token?: string | null) {
+  return apiFetch<{ job_id: string; status: string; source_id: string }>(`/api/v1/metrictrace/sources/${encodeURIComponent(sourceId)}/captures?workspace_id=${encodeURIComponent(workspaceId)}`, token, {
+    method: "POST",
+  });
+}
+
+export async function getPostgresCapture(sourceId: string, jobId: string, workspaceId: string, token?: string | null) {
+  return apiFetch<{ job_id: string; source_id: string; status: string; error: { category: string; message: string } | null; result: { dataset_version_id?: string; row_count?: number } | null }>(`/api/v1/metrictrace/sources/${encodeURIComponent(sourceId)}/captures/${encodeURIComponent(jobId)}?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}

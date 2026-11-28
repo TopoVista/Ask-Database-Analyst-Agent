@@ -38,6 +38,20 @@ async def discover_postgres_tables(
     return {"tables": tables}
 
 
+@router.get("/sources")
+async def list_metric_sources(
+    workspace_id: UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    user = await ensure_user(db, current_user)
+    try:
+        sources = await MetricTraceService(db).sources_for_user(user, workspace_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"sources": sources}
+
+
 @router.post("/lineage/inspect")
 async def inspect_static_lineage(
     request: StaticLineageRequest,

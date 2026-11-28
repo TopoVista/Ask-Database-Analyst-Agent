@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionSelector } from "./ConnectionSelector";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Chat" },
   { href: "/history", icon: History, label: "History" },
   { href: "/connections", icon: Database, label: "Connections" },
+  { href: "/sources", icon: HardDrive, label: "Data Sources" },
   { href: "/schema", icon: Sigma, label: "Schema" },
   { href: "/datasets", icon: FileSpreadsheet, label: "Datasets" },
   { href: "/replay", icon: GitCompareArrows, label: "Replay Lab" },
@@ -24,6 +25,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/dashboard": "Analytical workspace",
   "/history": "Session history",
   "/connections": "Connection management",
+  "/sources": "Historical data sources",
   "/schema": "Schema explorer",
   "/datasets": "Dataset management",
   "/replay": "Historical Replay Lab",

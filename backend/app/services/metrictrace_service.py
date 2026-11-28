@@ -191,6 +191,49 @@ class MetricTraceService:
         capture = PostgresSnapshotCapture(snapshot_store_from_settings(settings), limits)
         return await capture.discover_tables(ConnectionService(self.db).build_connection_string(connection))
 
+    async def sources_for_user(self, user: User, workspace_id: UUID) -> list[dict[str, Any]]:
+        """List source metadata and capture history without disclosing credentials."""
+        await self._owned_workspace(user, workspace_id)
+        sources = list(
+            (
+                await self.db.execute(
+                    select(MetricSource)
+                    .where(MetricSource.workspace_id == workspace_id)
+                    .order_by(MetricSource.created_at.desc())
+                )
+            ).scalars()
+        )
+        if not sources:
+            return []
+        source_ids = [source.id for source in sources]
+        versions = list(
+            (
+                await self.db.execute(
+                    select(DatasetVersion)
+                    .where(DatasetVersion.source_id.in_(source_ids), DatasetVersion.status == "ready")
+                    .order_by(DatasetVersion.captured_at.desc())
+                )
+            ).scalars()
+        )
+        by_source: dict[UUID, list[DatasetVersion]] = {source_id: [] for source_id in source_ids}
+        for version in versions:
+            by_source[version.source_id].append(version)
+        return [
+            {
+                "id": str(source.id),
+                "name": source.name,
+                "source_type": source.source_type,
+                "connection_id": str(source.connection_id) if source.connection_id else None,
+                "capture_status": source.capture_status,
+                "tables": source.capture_config.get("tables", []),
+                "schedule_seconds": source.capture_config.get("schedule_seconds"),
+                "version_count": len(by_source[source.id]),
+                "latest_version_id": str(by_source[source.id][0].id) if by_source[source.id] else None,
+                "latest_captured_at": by_source[source.id][0].captured_at.isoformat() if by_source[source.id] else None,
+            }
+            for source in sources
+        ]
+
     async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
         """Queue due captures using stable time windows as durable idempotency keys.
 

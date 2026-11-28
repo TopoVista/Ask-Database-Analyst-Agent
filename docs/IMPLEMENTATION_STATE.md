@@ -26,7 +26,7 @@ licenses and notices remain unchanged.
 | --- | --- | --- |
 | Lite local replay, CLI, SDK and MCP | COMPLETE | Existing 0.1.0 artifacts were locally validated before this roadmap continuation. |
 | Four-way replay queue foundation and Replay Lab | PARTIAL | Durable jobs, lease fencing, independent heartbeats and queued replay-cell execution exist. Replay Lab now discovers the authenticated workspace without fixture creation; it selects authorized source/version/metric/definition pairs, enforces same-source and same-metric compatibility in both client and service layers, submits asynchronously, stores replay IDs in the URL, polls authoritative cell-level state through refreshes, represents queued/running/retryable/failed/cancelled states, supports authorized cancellation, and withholds attribution until all four cells complete. This was committed and pushed as `b9e951d`. PostgreSQL multi-worker experiments and browser E2E validation have not run. |
-| PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. Owners can now perform bounded catalog discovery on an authorized PostgreSQL connection before registering selected tables; each discovered table is classified capture-compatible or unsupported using the same type rules as capture. Owner-configured bounded intervals enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
+| PostgreSQL source snapshot capture | PARTIAL | Authenticated source registration queues `SNAPSHOT_CAPTURE` work. Its worker path uses one read-only `REPEATABLE READ` PostgreSQL transaction, bounded cursors, typed Parquet batches and immutable verified objects without retaining the metadata transaction through source I/O. The Data Sources workspace now lists tenant-scoped source/version history, performs bounded catalog discovery on an authorized PostgreSQL connection, classifies each table with the same compatibility rules as capture, registers selected tables, explicitly queues captures, and polls durable capture status. Owner-configured bounded intervals enqueue idempotent capture jobs through a separate scheduler process. The real MVCC test and a live scheduler/worker run remain environment-gated because no authorized PostgreSQL service or Docker engine is available. |
 | Immutable object storage | PARTIAL | Local and S3-compatible stores now receive verified, unique attempt-scoped Parquet objects and a manifest published only after verification. An explicit, retention-bounded maintenance primitive can remove unreferenced stale attempt prefixes; it has no public API or scheduler, so state changes remain separately authorized. Live MinIO verification is still unimplemented. |
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
 | Dataset diff | PARTIAL | Shared Lite engine now compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The `dataset-diff-inspector` skill now documents the shared CLI and passes SKILL validation. Platform API/UI, historical-snapshot input and a tested marketplace ZIP remain unimplemented. |
@@ -69,12 +69,16 @@ Validation after the Replay Lab integration (pending its cohesive commit):
   The command runner returned while Next retained child processes, so this is
   recorded as artifact confirmation rather than a captured clean exit line.
 
-Validation after PostgreSQL catalog discovery (pending its cohesive commit):
+Validation after PostgreSQL catalog discovery and Data Sources UI (pending its cohesive commit):
 
 - Capture and MetricTrace API tests: `8 passed, 1 skipped in 6.25s`
   (`app/tests/test_postgres_capture.py`, `app/tests/test_metrictrace.py`). The
   skipped MVCC test requires `METRICTRACE_TEST_POSTGRES_URL`.
 - Scoped Ruff and `git diff --check`: passed.
+- Frontend TypeScript and lint: passed with no warnings or errors. `npm run
+  build` was started and produced the optimized-build stage; its child process
+  outlived the command output window, so a clean build exit is not claimed
+  until its final artifact is observed.
 
 ## Delivery note
 
@@ -84,9 +88,8 @@ or monetized.
 
 ## Exact next executable task
 
-Inspect the PostgreSQL capture adapter and connection workflow, then implement
-the missing product-facing source discovery/table-selection and capture-status
-flow. In parallel, run the environment-gated PostgreSQL MVCC test against a
+Verify the Data Sources production build and browser workflow, then run the
+environment-gated PostgreSQL MVCC test against a
 disposable instance (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials
 or Docker become available; then perform multi-worker failure experiments
 (claim contention, lease expiry, stale publication rejection and worker

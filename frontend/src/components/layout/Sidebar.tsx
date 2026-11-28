@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows } from "lucide-react";
+import { LayoutDashboard, History, Database, Sigma, FileSpreadsheet, FlaskConical, Brain, BarChart3, GitCompareArrows, HardDrive } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Chat", icon: LayoutDashboard },
   { href: "/history", label: "History", icon: History },
   { href: "/connections", label: "Connections", icon: Database },
+  { href: "/sources", label: "Data Sources", icon: HardDrive },
   { href: "/schema", label: "Schema", icon: Sigma },
   { href: "/datasets", label: "Datasets", icon: FileSpreadsheet },
   { href: "/replay", label: "Replay Lab", icon: GitCompareArrows },
@@ -22,6 +23,7 @@ const NAV_COPY: Record<string, string> = {
   "/dashboard": "Run and inspect analysis",
   "/history": "Review previous sessions",
   "/connections": "Manage database access",
+  "/sources": "Capture immutable history",
   "/schema": "Inspect connected tables",
   "/datasets": "Upload and profile data",
   "/replay": "Reconstruct historical metrics",

@@ -91,3 +91,15 @@ async def test_postgres_discovery_requires_an_owned_postgres_connection(client):
     )
     assert response.status_code == 404
     assert "PostgreSQL connection" in response.json()["detail"]
+
+
+async def test_metric_sources_are_listed_only_for_the_authenticated_workspace(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.get(f"/api/v1/metrictrace/sources?workspace_id={fixture['workspace_id']}")
+    assert response.status_code == 200
+    source = response.json()["sources"][0]
+    assert source["name"] == "Monday revenue fixture"
+    assert source["version_count"] == 2
+
+    denied = await client.get("/api/v1/metrictrace/sources?workspace_id=00000000-0000-0000-0000-000000000000")
+    assert denied.status_code == 404
