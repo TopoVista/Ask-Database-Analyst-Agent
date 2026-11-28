@@ -194,6 +194,22 @@ Commercial packaging recheck on 2026-11-28:
   depend on externally installed `metrictrace-lite`, which is not compatible
   with documented isolated-script delivery. No listing was submitted.
 
+Commercial SQL Regression Guardian package update on 2026-11-28:
+
+- The first distributable commercial skill now has a generated self-contained
+  runner built from the same MetricTrace deterministic source used by the SDK
+  and platform. It accepts an explicitly authorized single CSV/Parquet input
+  as `source_data`; no MetricTrace installation, service, AI key, or network
+  access is required.
+- `release/sql-regression-guardian-0.2.0.zip` was locally built and inspected
+  with seven expected text/source files and no detected credential pattern,
+  external link, binary/environment file, or off-platform routing.
+- The extracted runner reproduced the known 300,000 absolute difference and
+  exited `3` for the configured gate. Its checksum is recorded in
+  `release/SHA256SUMS-sql-regression-guardian-0.2.0.txt`.
+- The package has not been uploaded, submitted, approved, published, priced,
+  or sold. It remains subject to a current manual marketplace packaging recheck.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
@@ -204,9 +220,8 @@ No work has been deployed, published, submitted, or monetized.
 
 ## Exact next executable task
 
-Implement a generated self-contained SQL Regression Guardian runner from the
-shared deterministic source, then run the environment-gated PostgreSQL MVCC test against a disposable instance
+Run the environment-gated PostgreSQL MVCC test against a disposable instance
 (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
-available. In parallel, implement persisted decision receipts, then perform
-multi-worker failure experiments (claim contention, lease expiry, stale
-publication rejection and worker termination).
+available. Meanwhile, implement the multi-worker failure experiments (claim
+contention, lease expiry, stale-publication rejection, and worker termination)
+and continue CDC/bitemporal capture primitives without needing live Docker.

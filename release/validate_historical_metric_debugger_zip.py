@@ -74,7 +74,9 @@ def _frontmatter_is_valid(skill: str) -> bool:
     return {"name", "description"}.issubset(fields)
 
 
-def validate_archive(archive_path: Path) -> ValidationResult:
+def validate_archive(
+    archive_path: Path, expected_files: frozenset[str] = EXPECTED_FILES
+) -> ValidationResult:
     """Inspect an archive without extracting or executing its contents."""
     issues: list[ValidationIssue] = []
     if not archive_path.is_file():
@@ -87,8 +89,8 @@ def validate_archive(archive_path: Path) -> ValidationResult:
     try:
         with zipfile.ZipFile(archive_path) as archive:
             names = tuple(sorted(info.filename for info in archive.infolist() if not info.is_dir()))
-            unexpected = sorted(set(names) - EXPECTED_FILES)
-            missing = sorted(EXPECTED_FILES - set(names))
+            unexpected = sorted(set(names) - expected_files)
+            missing = sorted(expected_files - set(names))
             for path in unexpected:
                 issues.append(ValidationIssue("unexpected_file", path, "Not part of the approved single-skill file set."))
             for path in missing:
@@ -135,8 +137,15 @@ def validate_archive(archive_path: Path) -> ValidationResult:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", nargs="?", type=Path, default=DEFAULT_ARCHIVE)
+    parser.add_argument(
+        "--expected-file",
+        action="append",
+        dest="expected_files",
+        help="Exact archive file expected by the local release gate; repeat for each file.",
+    )
     args = parser.parse_args()
-    result = validate_archive(args.archive)
+    expected_files = frozenset(args.expected_files) if args.expected_files else EXPECTED_FILES
+    result = validate_archive(args.archive, expected_files)
     print(result.as_json())
     return 0 if result.status == "pass" else 1
 
