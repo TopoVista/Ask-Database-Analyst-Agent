@@ -54,3 +54,14 @@ async def test_canonical_metrictrace_replay_is_deterministic_and_reconciles(clie
     second = await client.post("/api/v1/metrictrace/demo")
     assert second.status_code == 200, second.text
     assert second.json()["attribution"] == body["attribution"]
+
+
+async def test_replay_options_are_scoped_to_the_workspace(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.get(f"/api/v1/metrictrace/replay-options?workspace_id={fixture['workspace_id']}")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["dataset_versions"]) >= 2
+    assert len(body["metric_definitions"]) >= 2
+    denied = await client.get("/api/v1/metrictrace/replay-options?workspace_id=00000000-0000-0000-0000-000000000000")
+    assert denied.status_code == 404

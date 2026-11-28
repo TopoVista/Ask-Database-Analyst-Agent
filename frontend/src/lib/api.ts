@@ -294,3 +294,12 @@ export interface MetricTraceDemoResult {
 export async function runMetricTraceDemo(token?: string | null) {
   return apiFetch<MetricTraceDemoResult>("/api/v1/metrictrace/demo", token, { method: "POST" });
 }
+
+export interface ReplayOptions {
+  dataset_versions: Array<{ id: string; source_id: string; source_name: string; captured_at: string; content_hash: string }>;
+  metric_definitions: Array<{ id: string; metric_id: string; metric_name: string; version: string; sql_hash: string }>;
+}
+
+export async function getReplayOptions(workspaceId: string, token?: string | null) {
+  return apiFetch<ReplayOptions>(`/api/v1/metrictrace/replay-options?workspace_id=${encodeURIComponent(workspaceId)}`, token);
+}

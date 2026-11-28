@@ -103,6 +103,15 @@ async def create_replay(request: ReplayRequest, current_user: AuthenticatedUser 
     return {"replay_id": str(job.id), "status": job.status, "attribution": job.attribution}
 
 
+@router.get("/replay-options")
+async def replay_options(workspace_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).replay_options_for_user(user, workspace_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 @router.get("/replays/{replay_id}")
 async def get_replay(replay_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
     user = await ensure_user(db, current_user)

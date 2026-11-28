@@ -314,6 +314,34 @@ class MetricTraceService:
             raise LookupError("Snapshot capture job not found")
         return job
 
+    async def replay_options_for_user(self, user: User, workspace_id: UUID) -> dict[str, list[dict[str, str]]]:
+        """Return only workspace-owned immutable replay inputs for the UI."""
+        await self._owned_workspace(user, workspace_id)
+        versions = await self.db.execute(
+            select(DatasetVersion, MetricSource)
+            .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+            .where(MetricSource.workspace_id == workspace_id, DatasetVersion.status == "ready")
+            .order_by(DatasetVersion.captured_at.desc())
+        )
+        definitions = await self.db.execute(
+            select(MetricDefinition, Metric)
+            .join(Metric, MetricDefinition.metric_id == Metric.id)
+            .where(Metric.workspace_id == workspace_id)
+            .order_by(Metric.name, MetricDefinition.version)
+        )
+        return {
+            "dataset_versions": [
+                {"id": str(version.id), "source_id": str(source.id), "source_name": source.name,
+                 "captured_at": version.captured_at.isoformat(), "content_hash": version.content_hash}
+                for version, source in versions
+            ],
+            "metric_definitions": [
+                {"id": str(definition.id), "metric_id": str(metric.id), "metric_name": metric.name,
+                 "version": str(definition.version), "sql_hash": definition.normalized_sql_hash}
+                for definition, metric in definitions
+            ],
+        }
+
     @staticmethod
     def _sql_hash(sql: str) -> str:
         return hashlib.sha256(" ".join(sql.split()).encode("utf-8")).hexdigest()
