@@ -189,6 +189,20 @@ class MetricPromotion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class DecisionReceipt(Base):
+    """Immutable platform evidence for one completed four-way replay."""
+
+    __tablename__ = "decision_receipts"
+    __table_args__ = (UniqueConstraint("replay_job_id", name="uq_decision_receipt_replay"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    replay_job_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("replay_jobs.id", ondelete="RESTRICT"), nullable=False)
+    integrity_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ReplayJob(Base):
     __tablename__ = "replay_jobs"
 
@@ -255,5 +269,6 @@ Index("idx_contract_evaluations_contract_created", ContractEvaluation.contract_i
 Index("idx_regression_policies_workspace_name", RegressionPolicy.workspace_id, RegressionPolicy.name)
 Index("idx_shadow_executions_workspace_created", ShadowExecution.workspace_id, ShadowExecution.created_at)
 Index("idx_metric_promotions_workspace_created", MetricPromotion.workspace_id, MetricPromotion.created_at)
+Index("idx_decision_receipts_workspace_created", DecisionReceipt.workspace_id, DecisionReceipt.created_at)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
 Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

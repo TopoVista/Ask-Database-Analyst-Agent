@@ -28,6 +28,7 @@ from app.infrastructure.storage.snapshot_store import snapshot_store_from_settin
 from app.services.connection_service import ConnectionService
 from app.models.metrictrace import (
     ContractEvaluation,
+    DecisionReceipt,
     DatasetVersion,
     DurableJob,
     Metric,
@@ -52,6 +53,7 @@ from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import check_sql_regression, validate_regression_thresholds
 from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
 from metrictrace_sdk.contracts import ContractError, ERROR, PASS, evaluate_contracts
+from metrictrace_sdk.reporting import create_platform_decision_receipt, verify_platform_decision_receipt
 
 
 class MetricTraceService:
@@ -669,6 +671,49 @@ class MetricTraceService:
             "previous_definition_id": str(active_definitions[0].id) if active_definitions else None,
             "evidence_fingerprint": promotion.evidence_fingerprint,
         }
+
+    async def create_decision_receipt(self, user: User, replay_id: UUID) -> dict[str, Any]:
+        """Persist exact completed replay evidence with a canonical integrity digest."""
+        replay = await self.db.get(ReplayJob, replay_id)
+        if replay is None:
+            raise LookupError("Replay not found")
+        await self._owned_workspace(user, replay.workspace_id)
+        existing = (await self.db.execute(select(DecisionReceipt).where(DecisionReceipt.replay_job_id == replay.id))).scalars().first()
+        if existing:
+            return self._receipt_read(existing)
+        if replay.status != "completed" or not replay.attribution:
+            raise ValueError("A decision receipt requires a completed reconciled replay.")
+        rows = list((await self.db.execute(
+            select(ReplayCell, MetricDefinition, DatasetVersion)
+            .join(MetricDefinition, ReplayCell.definition_id == MetricDefinition.id)
+            .join(DatasetVersion, ReplayCell.dataset_version_id == DatasetVersion.id)
+            .where(ReplayCell.replay_job_id == replay.id)
+        )).all())
+        if len(rows) != 4 or any(cell.status != "completed" for cell, _, _ in rows):
+            raise ValueError("A decision receipt requires four completed replay cells.")
+        payload = create_platform_decision_receipt({
+            "schema_version": "1.0", "scope": "platform_four_way_replay", "replay_id": str(replay.id),
+            "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "attribution": replay.attribution,
+            "cells": {cell.label: {"result": cell.result_text, "duration_ms": cell.duration_ms, "execution_fingerprint": cell.execution_fingerprint, "definition": {"id": str(definition.id), "sql_hash": definition.normalized_sql_hash}, "dataset": {"id": str(dataset.id), "content_hash": dataset.content_hash, "manifest_hash": dataset.content_hash}} for cell, definition, dataset in rows},
+            "contract_outcomes": None,
+            "limitations": ["Receipt integrity is not an authenticated signature.", "Contract outcomes are absent unless separately evaluated and attached."],
+        })
+        receipt = DecisionReceipt(workspace_id=replay.workspace_id, replay_job_id=replay.id, integrity_sha256=payload["integrity_sha256"], payload=payload)
+        self.db.add(receipt)
+        await self.db.flush()
+        return self._receipt_read(receipt)
+
+    async def decision_receipt_for_user(self, user: User, receipt_id: UUID) -> dict[str, Any]:
+        receipt = await self.db.get(DecisionReceipt, receipt_id)
+        if receipt is None:
+            raise LookupError("Decision receipt not found")
+        await self._owned_workspace(user, receipt.workspace_id)
+        return self._receipt_read(receipt)
+
+    @staticmethod
+    def _receipt_read(receipt: DecisionReceipt) -> dict[str, Any]:
+        return {"id": str(receipt.id), "replay_id": str(receipt.replay_job_id), "integrity_sha256": receipt.integrity_sha256, "created_at": receipt.created_at.isoformat(), "receipt": receipt.payload, "verification": verify_platform_decision_receipt(receipt.payload)}
 
     @staticmethod
     def _contract_read(contract: MetricContract, evaluation: ContractEvaluation | None = None) -> dict[str, Any]:

@@ -34,7 +34,7 @@ licenses and notices remain unchanged.
 | SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The platform exposes the same engine through a tenant-scoped immutable-version API with optional multi-table selection and typed parameters; client paths cannot be supplied. The SQL Regression workspace selects evidence, evaluates baseline/candidate SQL, and renders actual gate outcomes, timings, normalized SQL, and evidence fingerprints. Immutable named regression-policy versions and shadow executions bind the policy hash, exact baseline/candidate definition versions, immutable dataset content hash, gate report, and optional required contract report; a gate cannot pass when its required contract fails. A one-time PASS shadow record can atomically activate only its exact candidate, supersede the prior active definition, and produce a durable promotion receipt while rejecting consumed, FAIL, non-candidate, or stale policy/contract/dataset bindings. The Shadow Runs workspace creates policies, selects authenticated immutable inputs, runs gates, displays retained evidence, and makes the explicit one-time promotion action. A release ZIP remains unimplemented. |
 | Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The platform exposes a tenant-scoped immutable-version API that materializes only manifest-declared tables under deterministic SQL names before delegating to the shared engine. The SQL Join Auditor workspace selects historical inputs and displays observed join/unmatched/duplicate evidence, aggregate-amplification warnings, and explicit uncertainty. The `sql-join-auditor` skill documents the shared CLI and passes SKILL validation. A tested marketplace ZIP remains unimplemented. |
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. This is not persisted platform lineage, database-catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
-| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. Platform receipt persistence, dataset-version identifiers, contract outcomes, signing, retention state, and remote re-execution remain unimplemented. |
+| Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. The platform now persists one receipt per completed replay with all four cell execution fingerprints, immutable dataset/definition identifiers and hashes, attribution, canonical SHA-256 integrity digest, and tenant-scoped retrieval/verification. Verification explicitly does not claim authenticated authorship. Contract outcomes, retention state, browser receipt workspace, and remote re-execution remain unimplemented. |
 
 ## Validation baseline
 
@@ -150,6 +150,15 @@ Validation after Shadow Runs workspace:
   produced a fresh `.next/BUILD_ID`; the command runner did not preserve a
   final clean child-process exit line.
 
+Validation after persisted decision receipts:
+
+- Focused platform receipt test: `1 passed in 1.26s`
+  (`app/tests/test_metrictrace.py::test_decision_receipt_persists_and_verifies_completed_replay`).
+- Scoped Ruff over the receipt core, platform models/service/API, migration,
+  and test: passed.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `012_add_decision_receipts`: passed.
+
 ## Delivery note
 
 The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
@@ -160,7 +169,8 @@ No work has been deployed, published, submitted, or monetized.
 
 ## Exact next executable task
 
-Run the environment-gated PostgreSQL MVCC test against a disposable instance
+Build a tenant-scoped Decision Receipts workspace and attach contract outcomes
+where replay policy evidence exists. Then run the environment-gated PostgreSQL MVCC test against a disposable instance
 (`METRICTRACE_TEST_POSTGRES_URL`) if authorized credentials or Docker become
 available. In parallel, implement persisted decision receipts, then perform
 multi-worker failure experiments (claim contention, lease expiry, stale

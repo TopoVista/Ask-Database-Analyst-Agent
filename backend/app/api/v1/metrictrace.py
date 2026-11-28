@@ -23,6 +23,27 @@ from app.services.user_service import ensure_user
 router = APIRouter(prefix="/metrictrace", tags=["metrictrace"])
 
 
+@router.post("/replays/{replay_id}/decision-receipt", status_code=status.HTTP_201_CREATED)
+async def create_decision_receipt(replay_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    """Create or retrieve an integrity-checkable receipt for a completed replay."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).create_decision_receipt(user, replay_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/decision-receipts/{receipt_id}")
+async def get_decision_receipt(receipt_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user), db=Depends(get_db)):
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).decision_receipt_for_user(user, receipt_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 @router.post("/regression-policies", status_code=status.HTTP_201_CREATED)
 async def create_regression_policy(
     request: RegressionPolicyCreateRequest,

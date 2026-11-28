@@ -28,6 +28,34 @@ def _canonical(value: object) -> bytes:
     )
 
 
+def create_platform_decision_receipt(payload: dict) -> dict:
+    """Attach an integrity digest to persisted platform evidence, never a signature."""
+    if not isinstance(payload, dict) or payload.get("schema_version") != "1.0":
+        raise ValueError("Platform decision receipts require schema version 1.0.")
+    receipt = dict(payload)
+    receipt["integrity_sha256"] = hashlib.sha256(_canonical(receipt)).hexdigest()
+    return receipt
+
+
+def verify_platform_decision_receipt(receipt: dict) -> dict[str, object]:
+    """Verify receipt content integrity; this does not authenticate an author."""
+    if not isinstance(receipt, dict):
+        return {"valid": False, "integrity_valid": False, "missing_fields": ["receipt"]}
+    required = {"schema_version", "replay_id", "cells", "attribution", "integrity_sha256"}
+    missing = sorted(required - set(receipt))
+    digest = receipt.get("integrity_sha256")
+    unsigned = {key: value for key, value in receipt.items() if key != "integrity_sha256"}
+    integrity_valid = isinstance(digest, str) and digest == hashlib.sha256(_canonical(unsigned)).hexdigest()
+    attribution = receipt.get("attribution", {})
+    return {
+        "valid": not missing and integrity_valid and attribution.get("reconciles") is True,
+        "integrity_valid": integrity_valid,
+        "reconciliation_valid": attribution.get("reconciles") is True,
+        "missing_fields": missing,
+        "note": "SHA-256 checks receipt integrity; it is not an authenticated signature.",
+    }
+
+
 def _sha256_path(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:

@@ -287,3 +287,16 @@ async def test_promotion_consumes_a_passing_shadow_execution_once(client):
         json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": shadow.json()["id"]},
     )
     assert consumed.status_code == 409
+
+
+async def test_decision_receipt_persists_and_verifies_completed_replay(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    created = await client.post(f"/api/v1/metrictrace/replays/{fixture['replay_id']}/decision-receipt")
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["verification"]["valid"] is True
+    assert body["receipt"]["attribution"]["reconciles"] is True
+    assert len(body["receipt"]["cells"]) == 4
+    fetched = await client.get(f"/api/v1/metrictrace/decision-receipts/{body['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["integrity_sha256"] == body["integrity_sha256"]
