@@ -94,6 +94,11 @@ class ShadowExecutionRequest(BaseModel):
     table: CaptureTableRequest | None = None
 
 
+class MetricPromotionRequest(BaseModel):
+    workspace_id: str
+    shadow_execution_id: str
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

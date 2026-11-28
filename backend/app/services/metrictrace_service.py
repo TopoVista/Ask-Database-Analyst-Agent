@@ -34,6 +34,7 @@ from app.models.metrictrace import (
     MetricContract,
     MetricDefinition,
     MetricObservation,
+    MetricPromotion,
     MetricSource,
     ReplayCell,
     ReplayJob,
@@ -581,9 +582,14 @@ class MetricTraceService:
         status = PASS if regression["status"] == PASS and contract_status == PASS else "FAIL"
         report = {
             "dataset_table": identity,
+            "dataset_content_hash": dataset.content_hash,
             "regression": regression,
             "required_contract": (
-                {"id": str(policy.required_contract_id), "report": contract_report} if contract_report else None
+                {
+                    "id": str(policy.required_contract_id),
+                    "definition_hash": contract.definition_hash,
+                    "report": contract_report,
+                } if contract_report else None
             ),
             "policy_hash": policy.definition_hash,
         }
@@ -592,6 +598,77 @@ class MetricTraceService:
         self.db.add(shadow)
         await self.db.flush()
         return {"id": str(shadow.id), "status": shadow.status, "policy_id": str(policy.id), "input_fingerprint": fingerprint, "report": report}
+
+    async def promote_metric_definition(
+        self, user: User, workspace_id: UUID, candidate_definition_id: UUID, shadow_execution_id: UUID
+    ) -> dict[str, str | None]:
+        """Activate a candidate only when its immutable PASS evidence remains current.
+
+        The definition, policy, optional contract, and snapshot IDs are all read
+        from the one-use shadow record rather than trusting client-supplied
+        copies. The active-state change and its receipt share the request
+        transaction.
+        """
+        workspace = await self._owned_workspace(user, workspace_id)
+        shadow = await self.db.get(ShadowExecution, shadow_execution_id, with_for_update=True)
+        if shadow is None or shadow.workspace_id != workspace.id:
+            raise LookupError("Shadow execution is unavailable in this workspace")
+        if shadow.status != PASS or shadow.candidate_definition_id != candidate_definition_id:
+            raise ValueError("A matching PASS shadow execution is required for promotion.")
+        existing = (
+            await self.db.execute(select(MetricPromotion.id).where(MetricPromotion.shadow_execution_id == shadow.id))
+        ).scalar_one_or_none()
+        if existing:
+            raise ValueError("This shadow execution has already authorized a promotion.")
+        policy = await self.db.get(RegressionPolicy, shadow.policy_id)
+        candidate = await self.db.get(MetricDefinition, candidate_definition_id, with_for_update=True)
+        dataset = await self.db.get(DatasetVersion, shadow.dataset_version_id)
+        if policy is None or candidate is None or dataset is None:
+            raise ValueError("Promotion evidence is stale because a required binding is unavailable.")
+        if candidate.lifecycle_state != "candidate":
+            raise ValueError("Promotion evidence is stale because the definition is no longer a candidate.")
+        metric = await self.db.get(Metric, candidate.metric_id)
+        if metric is None or metric.workspace_id != workspace.id:
+            raise LookupError("Candidate definition is unavailable in this workspace")
+        report = shadow.report
+        if report.get("policy_hash") != policy.definition_hash or report.get("regression", {}).get("status") != PASS:
+            raise ValueError("Promotion evidence is stale because the regression policy binding changed.")
+        if dataset.content_hash != report.get("dataset_content_hash"):
+            raise ValueError("Promotion evidence is stale because the dataset binding changed.")
+        required_contract = report.get("required_contract")
+        if policy.required_contract_id:
+            contract = await self.db.get(MetricContract, policy.required_contract_id)
+            if not contract or not required_contract or required_contract.get("id") != str(contract.id) or required_contract.get("definition_hash") != contract.definition_hash:
+                raise ValueError("Promotion evidence is stale because the contract binding changed.")
+            if not required_contract["report"]["summary"]["mandatory_passed"]:
+                raise ValueError("Promotion evidence does not satisfy the required contract.")
+        elif required_contract is not None:
+            raise ValueError("Promotion evidence is stale because its contract policy binding changed.")
+        active_definitions = list((await self.db.execute(
+            select(MetricDefinition).where(
+                MetricDefinition.metric_id == metric.id,
+                MetricDefinition.lifecycle_state == "active",
+            ).with_for_update()
+        )).scalars())
+        for definition in active_definitions:
+            definition.lifecycle_state = "superseded"
+        candidate.lifecycle_state = "active"
+        promotion = MetricPromotion(
+            workspace_id=workspace.id,
+            metric_id=metric.id,
+            candidate_definition_id=candidate.id,
+            previous_definition_id=active_definitions[0].id if active_definitions else None,
+            shadow_execution_id=shadow.id,
+            evidence_fingerprint=shadow.input_fingerprint,
+        )
+        self.db.add(promotion)
+        await self.db.flush()
+        return {
+            "promotion_id": str(promotion.id),
+            "candidate_definition_id": str(candidate.id),
+            "previous_definition_id": str(active_definitions[0].id) if active_definitions else None,
+            "evidence_fingerprint": promotion.evidence_fingerprint,
+        }
 
     @staticmethod
     def _contract_read(contract: MetricContract, evaluation: ContractEvaluation | None = None) -> dict[str, Any]:
@@ -1124,7 +1201,7 @@ class MetricTraceService:
             original_sql = "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid'"
             proposed_sql = "SELECT SUM(amount_inr) FROM source_data WHERE status = 'paid' AND channel <> 'marketplace'"
             old_definition = MetricDefinition(metric_id=metric.id, version=1, sql=original_sql, normalized_sql_hash=self._sql_hash(original_sql), unit="INR", currency="INR")
-            new_definition = MetricDefinition(metric_id=metric.id, version=2, sql=proposed_sql, normalized_sql_hash=self._sql_hash(proposed_sql), unit="INR", currency="INR")
+            new_definition = MetricDefinition(metric_id=metric.id, version=2, sql=proposed_sql, normalized_sql_hash=self._sql_hash(proposed_sql), unit="INR", currency="INR", lifecycle_state="candidate")
             self.db.add_all([old_definition, new_definition])
             await self.db.flush()
         else:

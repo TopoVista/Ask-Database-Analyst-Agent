@@ -31,7 +31,7 @@ licenses and notices remain unchanged.
 | Docker infrastructure validation | BLOCKED | Docker CLI 28.1.1 is installed with `desktop-linux`, but its Linux engine pipe is absent: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.` `docker compose config --quiet` succeeded; no containers were started or validated. A local PostgreSQL 15 Windows service is listening on port 5432, but its default `postgres` account rejected the available passwordless connection; no credentials were requested or guessed. |
 | Dataset diff | PARTIAL | Shared Lite engine compares CSV/Parquet using DuckDB, with stable-key validation, schema changes, bounded evidence, keyless multiset mode, CLI JSON/Markdown and an MCP tool. The platform now adapts tenant-owned immutable version IDs—not user paths or storage keys—to that same engine, materializes one authorized Parquet object per version into bounded private temporary files, requires explicit table choice for multi-table captures, and exposes the result through the Dataset Diff workspace. The `dataset-diff-inspector` skill documents the shared CLI and passes SKILL validation. Historical multi-table capture comparison and marketplace ZIP validation remain untested against live PostgreSQL/MinIO infrastructure. |
 | Metric contracts | PARTIAL | Shared Lite engine evaluates declarative JSON contracts with PASS/FAIL/ERROR/NOT_EVALUATED states. It supports required columns, types, non-null/min/max/non-negative, key uniqueness, absolute/percentage change, referential integrity, freshness, bounded read-only SQL assertions and cross-metric reconciliation; CLI/MCP are wired. The platform now has tenant-scoped immutable contract-definition versions, explicit historical evaluation actions, durable evidence records bound to exact dataset content hashes and definition hashes, and a Contracts workspace to save/evaluate/view real outcomes. It delegates execution to the shared engine and accepts no user file paths. Shadow execution, transactional promotions, stale-approval fencing, and a release ZIP remain unimplemented. |
-| SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The platform exposes the same engine through a tenant-scoped immutable-version API with optional multi-table selection and typed parameters; client paths cannot be supplied. The SQL Regression workspace selects evidence, evaluates baseline/candidate SQL, and renders actual gate outcomes, timings, normalized SQL, and evidence fingerprints. Immutable named regression-policy versions and shadow executions now bind the policy hash, exact baseline/candidate definition versions, immutable dataset content hash, gate report, and optional required contract report; a gate cannot pass when its required contract fails. Transactional promotion, stale-approval rejection, a shadow-run UI, and a release ZIP remain unimplemented. |
+| SQL regression | PARTIAL | Shared Lite engine executes baseline and candidate read-only SQL against identical authorized local datasets, records values/duration/differences/fingerprints, and enforces explicit absolute or percentage gates. CLI and MCP are wired with stable CI failure exits. The platform exposes the same engine through a tenant-scoped immutable-version API with optional multi-table selection and typed parameters; client paths cannot be supplied. The SQL Regression workspace selects evidence, evaluates baseline/candidate SQL, and renders actual gate outcomes, timings, normalized SQL, and evidence fingerprints. Immutable named regression-policy versions and shadow executions bind the policy hash, exact baseline/candidate definition versions, immutable dataset content hash, gate report, and optional required contract report; a gate cannot pass when its required contract fails. A one-time PASS shadow record can now atomically activate only its exact candidate, supersede the prior active definition, and produce a durable promotion receipt while rejecting consumed, FAIL, non-candidate, or stale policy/contract/dataset bindings. A shadow-run/promotion UI and a release ZIP remain unimplemented. |
 | Join audit | PARTIAL | Shared Lite engine profiles supported direct equality joins against actual CSV/Parquet data: key cardinality/duplicates/nulls, unmatched rows, joined rows, aggregate context and potential amplification. CLI/MCP are wired. Unsupported joins return uncertainty. The platform exposes a tenant-scoped immutable-version API that materializes only manifest-declared tables under deterministic SQL names before delegating to the shared engine. The SQL Join Auditor workspace selects historical inputs and displays observed join/unmatched/duplicate evidence, aggregate-amplification warnings, and explicit uncertainty. The `sql-join-auditor` skill documents the shared CLI and passes SKILL validation. A tested marketplace ZIP remains unimplemented. |
 | Static SQL lineage | PARTIAL | Shared Lite engine now inspects authorized read-only SQL without data access, reporting source tables, CTE contexts, output expressions, transformation functions, explicit uncertainty and fingerprints. A comparison command reports static source/output surface changes. Tenant-scoped Platform API, CLI/MCP, and the `data-lineage-inspector` skill use that same implementation. This is not persisted platform lineage, database-catalog lineage, runtime-plan lineage, row-level lineage, or dynamic SQL support. |
 | Decision evidence | PARTIAL | Local reports retain canonical integrity digests and four-cell reconciliation. Each local report now includes a versioned decision receipt with exact file and SQL evidence, engine/compiler versions, explicit unavailable platform identifiers and limitations. The shared verifier also supports authorized deterministic re-execution after it checks exact data-file identities, SQL hashes, and parameters, returning explicit `REPRODUCED`, input-mismatch, result-mismatch, missing-evidence, or execution-failure outcomes. CLI and the `decision-evidence-verifier` skill are wired. Platform receipt persistence, dataset-version identifiers, contract outcomes, signing, retention state, and remote re-execution remain unimplemented. |
@@ -132,17 +132,29 @@ Validation after persisted shadow execution gates:
 - Scoped Ruff over the changed core, platform service/API/models/schemas,
   migration, and tests: passed.
 
+Validation after transactional metric promotion:
+
+- Shadow, promotion, contract, and shared SQL-regression tests: `17 passed in
+  19.08s` (`app/tests/test_metrictrace.py`, `app/tests/test_regression.py`,
+  `app/tests/test_contracts.py`). This covers FAIL-evidence rejection and
+  single-use PASS-evidence promotion.
+- A fresh SQLite Alembic upgrade ran from revision `001` through
+  `011_add_metric_promotions`: passed.
+- Scoped Ruff over changed platform models/service/API/schemas, migration,
+  and tests: passed.
+
 ## Delivery note
 
-The current branch is `codex/metrictrace-foundations`. Validated work is
-pushed to its origin branch. No work has been deployed, published, submitted,
-or monetized.
+The current branch is `codex/metrictrace-foundations`. Commit `387442d` is
+pushed. The subsequent validated `cc6c606` checkpoint is locally committed,
+but Git Credential Manager stalled before it could authenticate a push; the
+promotion checkpoint is also local pending that external authentication path.
+No work has been deployed, published, submitted, or monetized.
 
 ## Exact next executable task
 
-Implement transactional metric-definition promotion that consumes a PASS
-shadow execution and rejects stale definition, dataset, contract, or policy
-bindings. Then run the environment-gated
+Build the shadow-run/promotion workspace against the real persisted APIs, then
+run the environment-gated
 PostgreSQL MVCC test against a disposable instance (`METRICTRACE_TEST_POSTGRES_URL`)
 if authorized credentials or Docker become available, followed by multi-worker
 failure experiments (claim contention, lease expiry, stale publication rejection

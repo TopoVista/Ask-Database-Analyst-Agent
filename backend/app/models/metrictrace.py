@@ -173,6 +173,22 @@ class ShadowExecution(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class MetricPromotion(Base):
+    """An auditable, one-time activation authorized by a PASS shadow run."""
+
+    __tablename__ = "metric_promotions"
+    __table_args__ = (UniqueConstraint("shadow_execution_id", name="uq_metric_promotion_shadow_execution"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    metric_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metrics.id", ondelete="RESTRICT"), nullable=False)
+    candidate_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"), nullable=False)
+    previous_definition_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("metric_definitions.id", ondelete="RESTRICT"))
+    shadow_execution_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("shadow_executions.id", ondelete="RESTRICT"), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ReplayJob(Base):
     __tablename__ = "replay_jobs"
 
@@ -238,5 +254,6 @@ Index("idx_contract_evaluations_workspace_created", ContractEvaluation.workspace
 Index("idx_contract_evaluations_contract_created", ContractEvaluation.contract_id, ContractEvaluation.created_at)
 Index("idx_regression_policies_workspace_name", RegressionPolicy.workspace_id, RegressionPolicy.name)
 Index("idx_shadow_executions_workspace_created", ShadowExecution.workspace_id, ShadowExecution.created_at)
+Index("idx_metric_promotions_workspace_created", MetricPromotion.workspace_id, MetricPromotion.created_at)
 Index("idx_replay_jobs_workspace_created", ReplayJob.workspace_id, ReplayJob.created_at)
 Index("idx_durable_jobs_claim", DurableJob.status, DurableJob.scheduled_at, DurableJob.priority)

@@ -246,3 +246,44 @@ async def test_shadow_execution_persists_an_exact_regression_gate(client):
     assert body["report"]["regression"]["difference"]["absolute"] == "300000"
     assert body["report"]["regression"]["gates"][0]["status"] == "FAIL"
     assert body["input_fingerprint"]
+    rejected = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": body["id"]},
+    )
+    assert rejected.status_code == 409
+
+
+async def test_promotion_consumes_a_passing_shadow_execution_once(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    policy = await client.post(
+        "/api/v1/metrictrace/regression-policies",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "name": "Approved revenue candidate threshold",
+            "max_absolute_difference": "350000",
+        },
+    )
+    assert policy.status_code == 201
+    shadow = await client.post(
+        "/api/v1/metrictrace/shadow-executions",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "policy_id": policy.json()["policy_id"],
+            "baseline_definition_id": fixture["inputs"]["old_definition"],
+            "candidate_definition_id": fixture["inputs"]["new_definition"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+        },
+    )
+    assert shadow.status_code == 201, shadow.text
+    assert shadow.json()["status"] == "PASS"
+    promoted = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": shadow.json()["id"]},
+    )
+    assert promoted.status_code == 201, promoted.text
+    assert promoted.json()["candidate_definition_id"] == fixture["inputs"]["new_definition"]
+    consumed = await client.post(
+        f"/api/v1/metrictrace/metric-definitions/{fixture['inputs']['new_definition']}/promotions",
+        json={"workspace_id": fixture["workspace_id"], "shadow_execution_id": shadow.json()["id"]},
+    )
+    assert consumed.status_code == 409

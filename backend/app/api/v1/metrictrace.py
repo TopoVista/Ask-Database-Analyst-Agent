@@ -11,7 +11,7 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import ContractCreateRequest, ContractEvaluateRequest, DatasetDiffRequest, JoinAuditRequest, MetricPromotionRequest, PostgresDiscoveryRequest, PostgresSourceCreate, RegressionPolicyCreateRequest, ReplayRequest, ShadowExecutionRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
@@ -61,6 +61,25 @@ async def execute_shadow_run(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (ContractError, DatasetDiffError, RegressionError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/metric-definitions/{definition_id}/promotions", status_code=status.HTTP_201_CREATED)
+async def promote_metric_definition(
+    definition_id: UUID,
+    request: MetricPromotionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Consume one PASS shadow record to atomically activate a candidate definition."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).promote_metric_definition(
+            user, UUID(request.workspace_id), definition_id, UUID(request.shadow_execution_id)
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.post("/contracts", status_code=status.HTTP_201_CREATED)
