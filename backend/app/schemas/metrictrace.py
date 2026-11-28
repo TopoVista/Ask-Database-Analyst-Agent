@@ -60,6 +60,12 @@ class SqlRegressionRequest(BaseModel):
     parameters: dict[str, str | int | float | bool | None] = Field(default_factory=dict, max_length=32)
 
 
+class JoinAuditRequest(BaseModel):
+    workspace_id: str
+    dataset_version_id: str
+    sql: str = Field(min_length=1, max_length=100_000)
+
+
 class CaptureRead(BaseModel):
     dataset_version_id: str
     status: str

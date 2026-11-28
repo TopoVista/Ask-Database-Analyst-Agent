@@ -45,6 +45,7 @@ from app.tools.sql_validator import validate_sql
 from metrictrace_sdk.lineage import inspect_sql_lineage
 from metrictrace_sdk.dataset_diff import DatasetDiffError, compare_datasets
 from metrictrace_sdk.regression import check_sql_regression
+from metrictrace_sdk.join_audit import JoinAuditError, audit_sql_joins
 
 
 class MetricTraceService:
@@ -350,6 +351,34 @@ class MetricTraceService:
             "regression": report,
         }
 
+    async def audit_sql_joins_for_version(
+        self, user: User, workspace_id: UUID, dataset_version_id: UUID, sql: str
+    ) -> dict[str, Any]:
+        """Profile supported joins over one tenant-owned immutable snapshot."""
+        workspace = await self._owned_workspace(user, workspace_id)
+        version_result = await self.db.execute(
+            select(DatasetVersion)
+            .join(MetricSource, DatasetVersion.source_id == MetricSource.id)
+            .where(
+                DatasetVersion.id == dataset_version_id,
+                DatasetVersion.status == "ready",
+                MetricSource.workspace_id == workspace.id,
+            )
+        )
+        version = version_result.scalars().first()
+        if version is None:
+            raise LookupError("Dataset version is unavailable in this workspace")
+        store = snapshot_store_from_settings(get_settings())
+        with tempfile.TemporaryDirectory(prefix="metrictrace-join-audit-") as raw_temp:
+            temp_dir = Path(raw_temp)
+            datasets, table_identities = self._materialize_join_objects(store, workspace.id, version, temp_dir)
+            report = audit_sql_joins(datasets, sql, allowed_roots=(str(temp_dir),))
+        return {
+            "dataset_version_id": str(dataset_version_id),
+            "tables": table_identities,
+            "audit": report,
+        }
+
     @staticmethod
     def _materialize_diff_object(
         store: Any,
@@ -405,6 +434,42 @@ class MetricTraceService:
         except (OSError, ValueError) as exc:
             raise DatasetDiffError("Dataset version object is unavailable.") from exc
         return destination, identity
+
+    @staticmethod
+    def _materialize_join_objects(
+        store: Any, workspace_id: UUID, version: DatasetVersion, temp_dir: Path
+    ) -> tuple[dict[str, str], list[dict[str, str]]]:
+        """Materialize approved manifest tables with deterministic SQL names."""
+        try:
+            manifest = json.loads(store.read(workspace_id, version.manifest_uri))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise JoinAuditError("Dataset version manifest is unavailable or invalid.") from exc
+        datasets: dict[str, str] = {}
+        identities: list[dict[str, str]] = []
+        entries = manifest.get("tables")
+        if isinstance(entries, list):
+            for entry in entries:
+                schema, table = entry.get("schema"), entry.get("table")
+                object_key = entry.get("object", {}).get("key")
+                name = str(table).lower() if isinstance(table, str) else ""
+                if not schema or not name or not isinstance(object_key, str) or not object_key.endswith(".parquet"):
+                    raise JoinAuditError("Dataset version has an invalid captured-table manifest.")
+                if name in datasets:
+                    raise JoinAuditError("Captured table names must be unique across schemas for join auditing.")
+                destination = temp_dir / f"{name}.parquet"
+                try:
+                    destination.write_bytes(store.read(workspace_id, object_key))
+                except (OSError, ValueError) as exc:
+                    raise JoinAuditError(f"Captured table {schema}.{table} is unavailable.") from exc
+                datasets[name] = str(destination)
+                identities.append({"schema": str(schema), "table": str(table), "sql_name": name})
+        else:
+            path, _ = MetricTraceService._materialize_diff_object(store, workspace_id, version, None, temp_dir, "source_data")
+            datasets["source_data"] = str(path)
+            identities.append({"schema": "", "table": "source_data", "sql_name": "source_data"})
+        if not datasets:
+            raise JoinAuditError("Dataset version contains no auditable tables.")
+        return datasets, identities
 
     async def enqueue_scheduled_postgres_captures(self, now: datetime | None = None) -> int:
         """Queue due captures using stable time windows as durable idempotency keys.

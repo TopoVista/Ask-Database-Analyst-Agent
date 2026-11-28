@@ -11,10 +11,11 @@ from app.dependencies import get_current_user, get_db
 from app.schemas.auth import AuthenticatedUser
 from app.infrastructure.capture import CaptureTable, SnapshotCaptureError
 from app.models.metrictrace import DurableJob, ReplayCell, ReplayJob
-from app.schemas.metrictrace import DatasetDiffRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
+from app.schemas.metrictrace import DatasetDiffRequest, JoinAuditRequest, PostgresDiscoveryRequest, PostgresSourceCreate, ReplayRequest, SqlRegressionRequest, StaticLineageRequest
 from metrictrace_sdk.lineage import LineageError
 from metrictrace_sdk.dataset_diff import DatasetDiffError
 from metrictrace_sdk.regression import RegressionError
+from metrictrace_sdk.join_audit import JoinAuditError
 from app.services.metrictrace_service import MetricTraceService
 from app.services.user_service import ensure_user
 
@@ -103,6 +104,24 @@ async def check_sql_regression(
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (RegressionError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/join-audit")
+async def audit_sql_joins(
+    request: JoinAuditRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Run the shared cardinality diagnostic on one authorized snapshot."""
+    user = await ensure_user(db, current_user)
+    try:
+        return await MetricTraceService(db).audit_sql_joins_for_version(
+            user, UUID(request.workspace_id), UUID(request.dataset_version_id), request.sql
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (JoinAuditError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 

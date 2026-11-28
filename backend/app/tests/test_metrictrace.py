@@ -142,3 +142,19 @@ async def test_sql_regression_runs_shared_engine_against_an_owned_immutable_vers
     assert body["baseline"]["value"] == "2400000"
     assert body["candidate"]["value"] == "2100000"
     assert body["gates"] == [{"type": "absolute_difference", "limit": "250000", "actual": "300000", "status": "FAIL"}]
+
+
+async def test_join_audit_uses_only_the_owned_snapshot_manifest_tables(client):
+    fixture = (await client.post("/api/v1/metrictrace/demo")).json()
+    response = await client.post(
+        "/api/v1/metrictrace/join-audit",
+        json={
+            "workspace_id": fixture["workspace_id"],
+            "dataset_version_id": fixture["inputs"]["old_dataset_version"],
+            "sql": "SELECT * FROM source_data",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["tables"] == [{"schema": "", "table": "source_data", "sql_name": "source_data"}]
+    assert body["audit"]["supported"] is False
